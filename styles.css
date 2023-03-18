@@ -1,0 +1,17 @@
+body {
+    font-family: Arial, sans-serif;
+    width: 300px;
+    padding: 16px;
+  }
+  
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  ul {
+    list-style-type: none;
+    padding-left: 0;
+  }
+  
