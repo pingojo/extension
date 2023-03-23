@@ -1,22 +1,26 @@
 {
-    "manifest_version": 3,
-    "name": "Pingojo Extension",
-    "version": "1.0",
-    "description": "A CRM tool integrated into Gmail for Pingojo",
-    "permissions": ["tabs", "storage", "activeTab"],
-    "host_permissions": ["https://mail.google.com/"],
-    "action": {
-      "default_popup": "popup.html"
-    },
-    "background": {
-        "service_worker": "background.js"
-      },
-    "content_scripts": [
-      {
-        "matches": ["*://mail.google.com/*"],
-        "js": ["contentScript.js"],
-        "css": ["styles.css"]
-      }
-    ]
-  }
-  
+  "manifest_version": 3,
+  "name": "Pingojo Extension",
+  "version": "1.1",
+  "description": "A CRM tool integrated into Gmail for Pingojo",
+  "permissions": ["tabs", "storage", "activeTab", "cookies"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "host_permissions": [
+    "https://mail.google.com/",
+    "http://127.0.0.1:8000/",
+    "https://www.pingojo.com/"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://mail.google.com/*"],
+      "js": ["contentScript.js"],
+      "css": ["styles.css"]
+    }
+  ]
+}
