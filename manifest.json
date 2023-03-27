@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Pingojo Extension",
-  "version": "1.1",
+  "version": "1.0",
   "description": "A CRM tool integrated into Gmail for Pingojo",
   "permissions": ["tabs", "storage", "activeTab", "cookies"],
   "action": {
@@ -21,6 +21,14 @@
       "matches": ["*://mail.google.com/*"],
       "js": ["contentScript.js"],
       "css": ["styles.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "styles.css"
+      ],
+      "matches": ["<all_urls>"]
     }
   ]
 }
