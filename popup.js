@@ -62,3 +62,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 displayContacts();
+
+document.addEventListener("DOMContentLoaded", function () {
+  const clearDataButton = document.getElementById("clear-data-btn");
+
+  clearDataButton.addEventListener("click", function () {
+      chrome.storage.sync.remove("applications", function () {
+          console.log("Data cleared from storage.");
+      });
+  });
+});
