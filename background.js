@@ -1,17 +1,4 @@
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'addContact') {
-    const {
-      name,
-      email
-    } = request.contact;
-    sendResponse({
-      success: true
-    });
-  }
-});
-
-
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'getSessionCookie') {
     chrome.cookies.get({
       url: request.url,
@@ -36,7 +23,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse(null);
       }
     });
-    return true; // Return true to indicate that sendResponse will be called asynchronously
+    return true;
   }
 });
 

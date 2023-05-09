@@ -1,14 +1,6 @@
 
-  form {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  ul {
-    list-style-type: none;
-    padding-left: 0;
-  }
+
+
   .spinner {
     border: 4px solid rgba(0, 0, 0, 0.1);
     width: 24px;

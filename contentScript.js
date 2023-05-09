@@ -41,7 +41,7 @@ async function highlightCompanyNames() {
     const node = nodesToHighlight.shift();
     if (node) {
       highlightMatches(node);
-      setTimeout(processNodes, 0); // Yield control to the main thread
+      setTimeout(processNodes, 0);
     }
   }
 
@@ -66,11 +66,8 @@ async function getCompanyNames() {
   return companyNames;
 }
 
-const observer = new MutationObserver(mutationsList => {
-  // Check each mutation that was observed
-  
+const observer = new MutationObserver(mutationsList => {  
   for (const mutation of mutationsList) {
-    // If a new email has been added to the DOM, call the callback function
     if (mutation.type === 'childList' && mutation.addedNodes.length) {
       const addedNode = mutation.addedNodes[0];
       if (addedNode.tagName === 'DIV' && addedNode.getAttribute('role') === 'listitem') {
@@ -250,17 +247,6 @@ function createDropdownMenu(nameEmail, domain, companyName, datetime, fromAddres
 
     dropdown.appendChild(item);
   };
-
-  addItem('Add Contact', () => {
-    chrome.runtime.sendMessage({
-      type: 'addContact',
-      contact: nameEmail
-    }, (response) => {
-      if (response.success) {
-        alert('Contact added');
-      }
-    });
-  });
 
   addItem('Applied', () => sendDataToDRF('Applied',  nameEmail, domain, companyName, datetime, fromAddress, gmailId));
   addItem('Next', () => sendDataToDRF('Next',   nameEmail, domain, companyName, datetime, fromAddress, gmailId));
@@ -562,11 +548,6 @@ function createPingojoEntry(counts) {
 }
 
 
-
-
-
-
-
 function addOrUpdatePingojoEntry(counts) {
   const sidebar = document.querySelector('.aeN.WR.a6o.anZ.nH.oy8Mbf');
   if (!pingojoEntry) {
@@ -585,7 +566,6 @@ function addOrUpdatePingojoEntry(counts) {
 }
 
 async function observeSidebar() {
-  // Fetch counts from the server
   const counts = await fetchCountsAndApplicationsFromServer();
 
   const observer = new MutationObserver((mutations) => {
@@ -729,7 +709,6 @@ function addButtonAndInput() {
 
     if (emailContainer && subjectElement) {
       const currentTab = await getCurrentTab();
-      console.log('we have emailcontainer and subjectElement');
       const toolbar = createToolbar();
 
       const url = currentTab.url;
@@ -738,11 +717,6 @@ function addButtonAndInput() {
 
       const applications = await getApplications();
       const application = applications.find(app => app.gmail_id === gmailId);
-      console.log('application', application);
-      console.log('applications', applications);
-      console.log('gmailId', gmailId);
-      //log applicaiton length
-      console.log('application length', applications.length);
 
       if (application) {
         setInputValues(toolbar, application);
@@ -757,7 +731,7 @@ function addButtonAndInput() {
     }
   };
 
-  setTimeout(addToolbar, 100); // Adjust the delay (1000 ms) as needed
+  setTimeout(addToolbar, 100);
 }
 
 function getCurrentTab() {
@@ -816,7 +790,6 @@ function setDefaultInputValues(toolbar, subjectElement) {
   const companyInput = toolbar.querySelector('#company_input_field');
   const subject = subjectElement.textContent;
 
-  // Extract company name from email subject
   let companyName = "";
   for (const template of subjectTemplates) {
     const match = subject.match(template);
@@ -828,7 +801,6 @@ function setDefaultInputValues(toolbar, subjectElement) {
 
   companyInput.value = companyName;
 
-  // Extract role name from email
   const roleElement = document.querySelector('[aria-label="Job Title"]');
   if (roleElement && roleInput) {
     const role = roleElement.querySelector('span')?.textContent;
@@ -837,7 +809,6 @@ function setDefaultInputValues(toolbar, subjectElement) {
     }
   }
 
-  // Find the link with bold font and set the role input value
   const linkElement = findLinkElement();
   if (linkElement) {
     const roleName = linkElement.textContent.trim();
@@ -952,12 +923,8 @@ function injectStylesheet() {
   document.head.appendChild(cssLink);
 }
 
-
-
-// Get the current URL
 const currentURL = window.location.href;
 
-// Define the sites and their corresponding functions
 const siteFunctions = {
   'mail.google.com': function() {
     observer.observe(targetNode, observerConfig);
@@ -974,7 +941,6 @@ const siteFunctions = {
   }
 };
 
-// Check if the current page is a job listing
 function isJobListing() {
   const scriptTags = document.getElementsByTagName('script');
   for (const scriptTag of scriptTags) {
@@ -991,7 +957,6 @@ function isJobListing() {
 function extractJobInfo() {
   const jobInfo = {};
 
-  // Extract job information from the ld+json tag
   const scriptTags = document.getElementsByTagName('script');
   for (const scriptTag of scriptTags) {
     if (scriptTag.type === 'application/ld+json') {
@@ -1007,7 +972,6 @@ function extractJobInfo() {
     }
   }
 
-  // Fallback to extracting job information from the page elements
   if (!jobInfo.title) {
     const titleElement = document.querySelector(".app-title");
     if (titleElement) {
@@ -1029,20 +993,19 @@ function extractJobInfo() {
     }
   }
 
-  // Search for the salary range in the body content
   const bodyContent = document.body.textContent;
-  const salaryRangeRegex = /(\$[0-9,]+(?:\.\d{2})?)(?:(?:\s|-|\s*to\s*)|$)(\$[0-9,]+(?:\.\d{2})?)/;
+  const salaryRangeRegex = /.*?(\$[0-9,]+(?:\.\d{2})?).*?(\$[0-9,]+(?:\.\d{2})?)/;
+
   const salaryRangeMatch = bodyContent.match(salaryRangeRegex);
 
+  
   if (salaryRangeMatch) {
-    jobInfo.salaryRange = salaryRangeMatch[0];
+    jobInfo.salaryRange = `${salaryRangeMatch[1]} - ${salaryRangeMatch[2]}`;
   }
 
   return jobInfo;
 }
 
-
-// Send the extracted job information to the Django backend
 async function sendJobInfoToBackend(jobInfo) {
   console.log(jobInfo);
   jobInfo.link = window.location.href;
@@ -1101,28 +1064,8 @@ async function sendJobInfoToBackend(jobInfo) {
       }
     });
   });
-
-  // const csrfToken = getCookie("csrftoken");
-
-  // const response = await fetch("/your_api_endpoint/", {
-  //   method: "POST",
-  //   headers: {
-  //     "Content-Type": "application/json",
-  //     "X-CSRFToken": csrfToken,
-  //   },
-  //   credentials: "include",
-  //   body: JSON.stringify(jobInfo),
-  // });
-
-  // if (response.ok) {
-  //   const data = await response.json();
-  //   console.log(data);
-  // } else {
-  //   console.error("Error sending job info to backend:", response.statusText);
-  // }
 }
 
-// Helper function to get the CSRF token from cookies
 function getCookie(name) {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
@@ -1130,11 +1073,7 @@ function getCookie(name) {
 }
 
 
-
-
-// Create the overlay and insert it into the DOM
 function createOverlay() {
-  // Create an overlay container
   const overlay = document.createElement("div");
   overlay.id = "job-data-extractor-overlay";
   overlay.style.position = "fixed";
@@ -1149,15 +1088,12 @@ function createOverlay() {
   overlay.style.boxShadow = "0 0 10px rgba(0, 0, 0, 0.2)";
   document.body.appendChild(overlay);
 
-  // Extract job information
   const jobInfo = extractJobInfo();
 
-  // Create a form
   const form = document.createElement("form");
   form.id = "job-data-extractor-form";
   overlay.appendChild(form);
 
-  // Add input fields for the extracted job information
   for (const key in jobInfo) {
     const label = document.createElement("label");
     label.htmlFor = `job-data-extractor-${key}`;
@@ -1172,10 +1108,9 @@ function createOverlay() {
     input.style.marginBottom = "10px";
     form.appendChild(input);
   }
-  // Call the sendJobInfoToBackend function with the extracted job information
+
   sendJobInfoToBackend(jobInfo);
   
-  // Add a submit button
   const submitButton = document.createElement("button");
   submitButton.type = "submit";
   submitButton.textContent = "Submit";
@@ -1183,20 +1118,9 @@ function createOverlay() {
 }
 
 
-
-
-// Iterate over the siteFunctions object and run the corresponding function if the current URL matches
 for (const site in siteFunctions) {
   if (currentURL.includes(site)) {
     siteFunctions[site]();
     break;
   }
 }
-
-// chrome.storage.sync.clear(function() {
-//   console.log('Data cleared from storage.');
-// });
-
-// chrome.storage.sync.remove("applications", function() {
-//   console.log('Data cleared from storage.');
-// });
