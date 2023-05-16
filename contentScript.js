@@ -229,31 +229,31 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
   });
 }
 
-function createDropdownMenu(nameEmail, domain, companyName, datetime, fromAddress, gmailId) {
-  const dropdown = document.createElement('div');
-  dropdown.classList.add('dropdown-menu');
-  dropdown.style.cssText = 'position: absolute; display: none; background-color: white; border: 1px solid #ddd; z-index: 1000; padding: 8px;';
+// function createDropdownMenu(nameEmail, domain, companyName, datetime, fromAddress, gmailId) {
+//   const dropdown = document.createElement('div');
+//   dropdown.classList.add('dropdown-menu');
+//   dropdown.style.cssText = 'position: absolute; display: none; background-color: white; border: 1px solid #ddd; z-index: 1000; padding: 8px;';
 
-  const addItem = (text, callback) => {
-    const item = document.createElement('div');
-    item.style.cssText = 'cursor: pointer; padding: 4px 8px;';
-    item.textContent = text;
+//   const addItem = (text, callback) => {
+//     const item = document.createElement('div');
+//     item.style.cssText = 'cursor: pointer; padding: 4px 8px;';
+//     item.textContent = text;
 
-    item.addEventListener('click', (event) => {
-      event.stopPropagation();
-      callback();
-      toggleDropdown(dropdown);
-    });
+//     item.addEventListener('click', (event) => {
+//       event.stopPropagation();
+//       callback();
+//       toggleDropdown(dropdown);
+//     });
 
-    dropdown.appendChild(item);
-  };
+//     dropdown.appendChild(item);
+//   };
 
-  addItem('Applied', () => sendDataToDRF('Applied',  nameEmail, domain, companyName, datetime, fromAddress, gmailId));
-  addItem('Next', () => sendDataToDRF('Next',   nameEmail, domain, companyName, datetime, fromAddress, gmailId));
-  addItem('Scheduled', () => sendDataToDRF('Scheduled',   nameEmail, domain, companyName, datetime, fromAddress, gmailId));
-  addItem('Passed', () => sendDataToDRF('Passed',  nameEmail, domain, companyName, datetime, fromAddress, gmailId));
-  return dropdown;
-}
+//   addItem('Applied', () => sendDataToDRF('Applied',  nameEmail, domain, companyName, datetime, fromAddress, gmailId));
+//   addItem('Next', () => sendDataToDRF('Next',   nameEmail, domain, companyName, datetime, fromAddress, gmailId));
+//   addItem('Scheduled', () => sendDataToDRF('Scheduled',   nameEmail, domain, companyName, datetime, fromAddress, gmailId));
+//   addItem('Passed', () => sendDataToDRF('Passed',  nameEmail, domain, companyName, datetime, fromAddress, gmailId));
+//   return dropdown;
+// }
 
 function toggleDropdown(dropdown) {
   if (dropdown.style.display === 'none') {
@@ -394,17 +394,18 @@ function addCrmIcon(emailHeader) {
       img.style.border = "2px solid #42d692";
     }
 
+    // Extract user number from the current URL
+    const userNumber = (window.location.href.match(/\/u\/(\d+)/) || [, '0'])[1];
+
     img.addEventListener("click", (event) => {
       event.stopPropagation();
-      toggleDropdown(dropdown);
+      // Navigate to Gmail search in the same tab with all emails from the sender
+      window.location.href = `https://mail.google.com/mail/u/${userNumber}/#search/from:${fromAddress}`;
     });
 
     const td = document.createElement("td");
     td.style.verticalAlign = "middle";
     td.appendChild(img);
-
-    const dropdown = createDropdownMenu(nameEmail, domain, companyName, datetime, fromAddress, gmailId);
-    td.appendChild(dropdown);
 
     const firstCell = emailHeader.querySelector("td");
     if (firstCell) {
@@ -412,6 +413,9 @@ function addCrmIcon(emailHeader) {
     }
   }
 }
+
+
+
 
 function extractDatetime(emailHeader) {
   const datetimeElement = emailHeader.querySelector("td.xY span[title]");
