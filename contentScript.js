@@ -57,6 +57,7 @@ style.textContent = `
 document.head.appendChild(style);
 
 highlightCompanyNames();
+replaceLinkWithGmailLink();
 
 
 
@@ -956,6 +957,20 @@ function isJobListing() {
     }
   }
   return false;
+}
+
+function replaceLinkWithGmailLink() {
+  const link = document.querySelector("#stat a");
+  if (link) {
+    const gmailLink = document.createElement("a");
+    gmailLink.href = "https://mail.google.com/";
+    gmailLink.textContent = "Open Gmail";
+    gmailLink.target = "_blank"; // Add target attribute to open in new window
+    link.replaceWith(gmailLink);
+    console.log("Link replaced with Gmail link");
+  } else {
+    console.log("No link found in #stat div");
+  }
 }
 
 function extractJobInfo() {
