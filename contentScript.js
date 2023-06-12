@@ -205,7 +205,7 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
                     applications.push(payload);
                   
                     chrome.storage.local.set({ applications }, () => {
-                      console.log("Applications stored:", applications);
+                      //console.log("Applications stored:", applications);
                     });
                   });
                 })
@@ -317,6 +317,53 @@ function sendDetailInfoToDRF(stage) {
 }
 
 
+async function autoSubmitAppliedButton() {
+  const elements = Array.from(document.querySelectorAll("*"));
+  let found = false;
+  for (let index = 0; index < elements.length; index++) {
+    const element = elements[index];
+    const text = element.textContent.toLowerCase();
+
+    if (text.indexOf("your application has been submitted") !== -1) {
+      found = false;
+      
+      const appliedButton = document.querySelector("#applied_button");
+      if (appliedButton) {
+        const inputField2 = document.querySelector('#company_input_field');
+        let companyName = '';
+        if (inputField2) {
+          companyName = inputField2.value;
+        }
+        //console.log("company name: " + companyName);
+
+        try {
+          const companyNames = await getCompanyNames();
+          for (let i = 0; i < companyNames.length; i++) {
+            //console.log("company name in local storage: " + companyNames[i]);
+            if (companyNames[i] === companyName) {
+              //console.log("company name already in local storage");
+              found = true;
+            }
+          }
+          if (!found) {
+            appliedButton.click();
+            //console.log("Applied button submitted automatically");
+            found = true;
+            break;  // exits the for loop
+          }
+        } catch (err) {
+          console.error("Error retrieving company names: ", err);
+        }
+        
+      } else {
+        //console.log("No applied button found");
+      }
+      if(found) break; // breaks the outer loop
+    }
+  }
+}
+
+
 function createDetailButton(label, spinner, checkmark) {
   const button = document.createElement('button');
   button.textContent = label;
@@ -333,6 +380,9 @@ function createDetailButton(label, spinner, checkmark) {
       .then(() => {
         spinner.style.display = 'none';
         checkmark.style.display = 'block';
+        //set the button to disabled
+        //button.disabled = true;
+        button.style.backgroundColor = 'grey';
 
       })
       .catch((error) => {
@@ -640,7 +690,7 @@ async function fetchCountsAndApplicationsFromServer() {
                   }));
 
                   chrome.storage.local.set({ applications }, () => {
-                    console.log('Applications stored:', applications);
+                    //console.log('Applications stored:', applications);
                   });
 
                   resolve(counts);
@@ -731,8 +781,10 @@ function addButtonAndInput() {
       }
 
       emailContainer.parentNode.insertBefore(toolbar, emailContainer);
+
+      autoSubmitAppliedButton();
     } else {
-      console.log('emailContainer && subjectElement not found');
+      //console.log('emailContainer && subjectElement not found');
     }
   };
 
@@ -967,9 +1019,9 @@ function replaceLinkWithGmailLink() {
     gmailLink.textContent = "Open Gmail";
     gmailLink.target = "_blank"; // Add target attribute to open in new window
     link.replaceWith(gmailLink);
-    console.log("Link replaced with Gmail link");
+    //console.log("Link replaced with Gmail link");
   } else {
-    console.log("No link found in #stat div");
+    //console.log("No link found in #stat div");
   }
 }
 
@@ -1026,7 +1078,7 @@ function extractJobInfo() {
 }
 
 async function sendJobInfoToBackend(jobInfo) {
-  console.log(jobInfo);
+  //console.log(jobInfo);
   jobInfo.link = window.location.href;
 
 
@@ -1063,7 +1115,7 @@ async function sendJobInfoToBackend(jobInfo) {
               })
               .then(data => {
                
-                console.log(data);
+                //console.log(data);
               })
               .catch(error => {
                 alert('There was a problem with the fetch operation:', error)
