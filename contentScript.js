@@ -1354,8 +1354,7 @@ async function createWellfoundOverlay() {
   form.appendChild(pingojoLink);
 
   const gmailLink = document.createElement("a");
-  jobInfo.company = '"' + jobInfo.company + '"';
-  gmailLink.href = "https://mail.google.com/mail/u/0/#search/" + jobInfo.company;
+  gmailLink.href = "https://mail.google.com/mail/u/0/#search/" + '"' + jobInfo.company + '"';
   gmailLink.target = "_blank";
   gmailLink.textContent = "Search Gmail for " + jobInfo.company;
   gmailLink.style.display = "block";
