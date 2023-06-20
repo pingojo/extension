@@ -1,29 +1,37 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const urlForm = document.getElementById("urlForm");
-  const baseURL = document.getElementById("baseURL");
-  const currentBaseURL = document.getElementById("currentBaseURL");
+  const forms = document.querySelectorAll("[data-form-key]");
+  const displayElements = document.querySelectorAll("[data-display-key]");
 
-  chrome.storage.sync.get("base_url", ({ base_url }) => {
-    baseURL.value = base_url || "";
-    currentBaseURL.textContent = base_url || "Not set";
+  const processForm = (form, input, current, storageKey) => {
+    chrome.storage.sync.get(storageKey, (data) => {
+      input.value = data[storageKey] || "";
+      current.textContent = data[storageKey] || "Not set";
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      chrome.storage.sync.set({ [storageKey]: input.value });
+
+      current.textContent = input.value;
+    });
+  };
+
+  forms.forEach(form => {
+    const input = form.querySelector('input');
+    const storageKey = form.dataset.formKey;
+    const current = Array.from(displayElements).find(
+      el => el.dataset.displayKey === storageKey
+    );
+
+    processForm(form, input, current, storageKey);
   });
 
-  urlForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-
-    chrome.storage.sync.set({ base_url: baseURL.value });
-
-    currentBaseURL.textContent = baseURL.value;
-  });
-});
-
-
-document.addEventListener("DOMContentLoaded", function () {
   const clearDataButton = document.getElementById("clear-data-btn");
 
   clearDataButton.addEventListener("click", function () {
-      chrome.storage.sync.remove("applications", function () {
-          console.log("Data cleared from storage.");
-      });
+    chrome.storage.sync.remove("applications", function () {
+      console.log("Data cleared from storage.");
+    });
   });
 });

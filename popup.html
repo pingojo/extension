@@ -4,18 +4,92 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pingojo CRM Extension</title>
-  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      max-width: 800px;
+      margin: auto;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #333;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 10px;
+      font-size: 15px;
+    }
+
+    form {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    input {
+      flex: 1;
+      margin-right: 10px;
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    button {
+      padding: 5px 10px;
+      border: none;
+      color: white;
+      background-color: #333;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #444;
+    }
+
+    p {
+      margin-bottom: 20px;
+    }
+  </style>
+  <script src="popup.js" defer></script>
 </head>
 <body>
 
   <h1>Set Base URL</h1>
-  <form id="urlForm">
-    <input type="text" id="baseURL" placeholder="Enter base URL" />
+  <form data-form-key="base_url">
+    <input type="text" placeholder="Enter base URL" />
     <button type="submit">Save</button>
   </form>
-  <p>Current Base URL: <span id="currentBaseURL"></span></p>
-  <button id="clear-data-btn">Clear Application Data</button>
+  <p>Current Base URL: <span data-display-key="base_url"></span></p>
 
-  <script src="popup.js"></script>
+  
+
+  <h1>Set Prompt Injection</h1>
+  <form data-form-key="prompt_text">
+    <input type="text" placeholder="Enter prompt injection" />
+    <button type="submit">Save</button>
+  </form>
+  <p>Current Prompt Injection: <span data-display-key="prompt_text"></span></p>
+
+  <h1>Full Name</h1>
+  <form data-form-key="full_name">
+    <input type="text" placeholder="Enter full name" />
+    <button type="submit">Save</button>
+  </form>
+  <p>Current Full Name: <span data-display-key="full_name"></span></p>
+
+  <h1>Email Address</h1>
+  <form data-form-key="email_address">
+    <input type="text" placeholder="Enter email address" />
+    <button type="submit">Save</button>
+  </form>
+  <p>Current Email Address: <span data-display-key="email_address"></span></p>
+
+    <hr>
+    <button id="clear-data-btn">Clear Application Data</button>
 </body>
 </html>

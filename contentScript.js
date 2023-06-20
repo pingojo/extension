@@ -67,13 +67,13 @@ async function getCompanyNames() {
   return companyNames;
 }
 
-const observer = new MutationObserver(mutationsList => {  
+const observer = new MutationObserver(mutationsList => {
   for (const mutation of mutationsList) {
     if (mutation.type === 'childList' && mutation.addedNodes.length) {
       const addedNode = mutation.addedNodes[0];
       if (addedNode.tagName === 'DIV' && addedNode.getAttribute('role') === 'listitem') {
         debouncedAddButtonAndInput();
-        
+
       }
     }
   }
@@ -176,11 +176,11 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
                 'X-CSRFToken': csrfToken,
               }
               fetch(full_url, {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: headers,
-                  body: JSON.stringify(payload)
-                })
+                method: 'POST',
+                credentials: 'include',
+                headers: headers,
+                body: JSON.stringify(payload)
+              })
                 .then(response => {
                   if (!response.ok) {
                     alert('Network response was not ok', JSON.stringify(response));
@@ -195,15 +195,15 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
                     data.counts['total_next'],
                     data.counts['total_passed'],
                   ];
-                  
+
                   addOrUpdatePingojoEntry(counts)
                   resolve(data);
 
                   chrome.storage.local.get("applications", (data2) => {
                     let applications = data2.applications || [];
-                  
+
                     applications.push(payload);
-                  
+
                     chrome.storage.local.set({ applications }, () => {
                       //console.log("Applications stored:", applications);
                     });
@@ -230,41 +230,6 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
   });
 }
 
-// function createDropdownMenu(nameEmail, domain, companyName, datetime, fromAddress, gmailId) {
-//   const dropdown = document.createElement('div');
-//   dropdown.classList.add('dropdown-menu');
-//   dropdown.style.cssText = 'position: absolute; display: none; background-color: white; border: 1px solid #ddd; z-index: 1000; padding: 8px;';
-
-//   const addItem = (text, callback) => {
-//     const item = document.createElement('div');
-//     item.style.cssText = 'cursor: pointer; padding: 4px 8px;';
-//     item.textContent = text;
-
-//     item.addEventListener('click', (event) => {
-//       event.stopPropagation();
-//       callback();
-//       toggleDropdown(dropdown);
-//     });
-
-//     dropdown.appendChild(item);
-//   };
-
-//   addItem('Applied', () => sendDataToDRF('Applied',  nameEmail, domain, companyName, datetime, fromAddress, gmailId));
-//   addItem('Next', () => sendDataToDRF('Next',   nameEmail, domain, companyName, datetime, fromAddress, gmailId));
-//   addItem('Scheduled', () => sendDataToDRF('Scheduled',   nameEmail, domain, companyName, datetime, fromAddress, gmailId));
-//   addItem('Passed', () => sendDataToDRF('Passed',  nameEmail, domain, companyName, datetime, fromAddress, gmailId));
-//   return dropdown;
-// }
-
-function toggleDropdown(dropdown) {
-  if (dropdown.style.display === 'none') {
-    dropdown.style.display = 'block';
-  } else {
-    dropdown.style.display = 'none';
-  }
-}
-
-
 
 function sendDetailInfoToDRF(stage) {
   return new Promise((resolve, reject) => {
@@ -278,7 +243,7 @@ function sendDetailInfoToDRF(stage) {
     if (inputField2) {
       companyName = inputField2.value;
     }
-    
+
     const inputFieldRole = document.querySelector('#role_input_field');
     let roleName = '';
     if (inputFieldRole) {
@@ -292,22 +257,22 @@ function sendDetailInfoToDRF(stage) {
       const datetime = datetimeElement ? datetimeElement.getAttribute('title') : '';
       const nameEmail = extractSenderInfoFromDetail(emailMetaInfo);
       const domain = parseDomain(nameEmail.email);
-      
+
       chrome.runtime.sendMessage({ type: 'getCurrentTab' }, (currentTab) => {
         if (!currentTab) reject(new Error('Current tab not found'));
-  
+
         var url = currentTab.url;
         var gmailIdMatch = url.match(/\/([a-zA-Z0-9]+)$/);
         var gmailId = gmailIdMatch ? gmailIdMatch[1] : null;
         const cleanedDatetime = datetime.replace(/\u202F/g, ' ');
 
         sendDataToDRF(stage, nameEmail, domain, companyName, cleanedDatetime, fromAddress, gmailId, roleName)
-        .then((data) => {
-          resolve(data);
-        })
-        .catch((error) => {
-          reject(error);
-        });
+          .then((data) => {
+            resolve(data);
+          })
+          .catch((error) => {
+            reject(error);
+          });
       });
 
     } else {
@@ -326,7 +291,7 @@ async function autoSubmitAppliedButton() {
 
     if (text.indexOf("your application has been submitted") !== -1) {
       found = false;
-      
+
       const appliedButton = document.querySelector("#applied_button");
       if (appliedButton) {
         const inputField2 = document.querySelector('#company_input_field');
@@ -334,31 +299,27 @@ async function autoSubmitAppliedButton() {
         if (inputField2) {
           companyName = inputField2.value;
         }
-        //console.log("company name: " + companyName);
 
         try {
           const companyNames = await getCompanyNames();
           for (let i = 0; i < companyNames.length; i++) {
-            //console.log("company name in local storage: " + companyNames[i]);
             if (companyNames[i] === companyName) {
-              //console.log("company name already in local storage");
               found = true;
             }
           }
           if (!found) {
             appliedButton.click();
-            //console.log("Applied button submitted automatically");
             found = true;
-            break;  // exits the for loop
+            break;  
           }
         } catch (err) {
           console.error("Error retrieving company names: ", err);
         }
-        
+
       } else {
         //console.log("No applied button found");
       }
-      if(found) break; // breaks the outer loop
+      if (found) break;
     }
   }
 }
@@ -380,8 +341,6 @@ function createDetailButton(label, spinner, checkmark) {
       .then(() => {
         spinner.style.display = 'none';
         checkmark.style.display = 'block';
-        //set the button to disabled
-        //button.disabled = true;
         button.style.backgroundColor = 'grey';
 
       })
@@ -445,12 +404,10 @@ function addCrmIcon(emailHeader) {
       img.style.border = "2px solid #42d692";
     }
 
-    // Extract user number from the current URL
     const userNumber = (window.location.href.match(/\/u\/(\d+)/) || [, '0'])[1];
 
     img.addEventListener("click", (event) => {
       event.stopPropagation();
-      // Navigate to Gmail search in the same tab with all emails from the sender
       window.location.href = `https://mail.google.com/mail/u/${userNumber}/#search/from:${fromAddress}`;
     });
 
@@ -464,8 +421,6 @@ function addCrmIcon(emailHeader) {
     }
   }
 }
-
-
 
 
 function extractDatetime(emailHeader) {
@@ -572,26 +527,21 @@ function createPingojoEntry(counts) {
     countContainer.setAttribute('aria-label', `Pingojo, ${count} items`);
     countContainer.setAttribute('role', 'link');
     countContainer.tabIndex = -1;
-
     const countValue = document.createElement('span');
     countValue.setAttribute('aria-hidden', 'true');
     countValue.textContent = count;
-
     countContainer.appendChild(countValue);
     iconContainer.appendChild(countContainer);
   });
 
   entryContainer.appendChild(iconContainer);
-
   const title = document.createElement('div');
   title.classList.add('apW');
   title.setAttribute('role', 'heading');
   title.setAttribute('aria-level', '2');
   title.textContent = 'Pingojo';
   title.style.textAlign = 'center';
-
   entryContainer.appendChild(title);
-
   entryContainer.addEventListener('click', () => {
     chrome.storage.sync.get("base_url", ({ base_url }) => {
       var base_url = base_url || "https://www.pingojo.com";
@@ -622,10 +572,9 @@ function addOrUpdatePingojoEntry(counts) {
 
 async function observeSidebar() {
   const counts = await fetchCountsAndApplicationsFromServer();
-
   const observer = new MutationObserver((mutations) => {
     const sidebar = document.querySelector('.aeN.WR.a6o.anZ.nH.oy8Mbf');
-    if (sidebar) {  
+    if (sidebar) {
       addOrUpdatePingojoEntry(counts);
       observer.disconnect();
     }
@@ -660,10 +609,10 @@ async function fetchCountsAndApplicationsFromServer() {
                 'X-CSRFToken': csrfToken,
               }
               fetch(full_url, {
-                  method: 'GET',
-                  credentials: 'include',
-                  headers: headers
-                })
+                method: 'GET',
+                credentials: 'include',
+                headers: headers
+              })
                 .then(response => {
                   if (!response.ok) {
                     alert('Network response was not ok', JSON.stringify(response));
@@ -678,7 +627,7 @@ async function fetchCountsAndApplicationsFromServer() {
                     data.counts['total_next'],
                     data.counts['total_passed'],
                   ];
-                  
+
                   const applications = data.emails.map(email => ({
                     gmail_id: email.gmail_id,
                     subject: email.subject,
@@ -765,11 +714,9 @@ function addButtonAndInput() {
     if (emailContainer && subjectElement) {
       const currentTab = await getCurrentTab();
       const toolbar = createToolbar();
-
       const url = currentTab.url;
       const gmailIdMatch = url.match(/\/([a-zA-Z0-9]+)$/);
       const gmailId = gmailIdMatch ? gmailIdMatch[1] : null;
-
       const applications = await getApplications();
       const application = applications.find(app => app.gmail_id === gmailId);
 
@@ -787,7 +734,6 @@ function addButtonAndInput() {
       //console.log('emailContainer && subjectElement not found');
     }
   };
-
   setTimeout(addToolbar, 100);
 }
 
@@ -815,21 +761,18 @@ async function getApplications() {
 function setInputValues(toolbar, application) {
   const roleInput = toolbar.querySelector('#role_input_field');
   const companyInput = toolbar.querySelector('#company_input_field');
-  if(application.job_role){
+  if (application.job_role) {
     roleInput.value = application.job_role;
   }
-  
-  companyInput.value = application.company_name;
 
+  companyInput.value = application.company_name;
   const buttonContainer = toolbar.querySelector('.button_container');
   const linkToCrm = createLinkToCrm(companyInput.value);
   buttonContainer.appendChild(linkToCrm);
 }
 
 function setButtonState(toolbar, application) {
-  
   const stageButton = toolbar.querySelector(`#${application.stage_name.toLowerCase()}_button`);
-
   const otherButtons = toolbar.querySelectorAll('.stage_button:not(#' + application.stage_name.toLowerCase() + '_button)');
 
   if (stageButton) {
@@ -967,8 +910,6 @@ function createToolbar() {
   passedButton.id = 'passed_button';
   buttonContainer.appendChild(passedButton);
 
-  
-
   return toolbar;
 }
 
@@ -983,20 +924,82 @@ function injectStylesheet() {
 const currentURL = window.location.href;
 
 const siteFunctions = {
-  'mail.google.com': function() {
+  'mail.google.com': function () {
     observer.observe(targetNode, observerConfig);
     observeSidebar();
     listenHashChanged();
     injectStylesheet();
-    
-    
   },
-  'greenhouse.io': function() {
+  'greenhouse.io': function () {
     if (isJobListing()) {
       createOverlay();
     }
+  },
+  'wellfound.com': function () {
+    if (isWellfoundJobListing()) {
+      createWellfoundOverlay();
+    }
   }
 };
+
+
+
+
+let emailRegEx = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+
+function searchElement(element) {
+  let matches = [];
+
+  for (let i = 0; i < element.attributes.length; i++) {
+    let attrMatches = element.attributes[i].value.match(emailRegEx);
+    if (attrMatches) {
+      attrMatches.forEach(match => {
+        if (!matches.includes(match)) {
+          console.log(match);
+          if (!match.includes("u003e")) {
+            matches.push(match);
+          }
+        }
+      });
+    }
+  }
+
+  // Check text content of the element
+  let textMatches = element.textContent.match(emailRegEx);
+  if (textMatches) {
+    textMatches.forEach(match => {
+      if (!matches.includes(match)) {
+        if (!match.includes("u003e")) {
+          matches.push(match);
+        }
+      }
+    });
+  }
+
+  // Check children of the element
+  for (let i = 0; i < element.children.length; i++) {
+    let childMatches = searchElement(element.children[i]);
+    childMatches.forEach(match => {
+      if (!matches.includes(match)) {
+        if (!match.includes("u003e")) {
+          matches.push(match);
+        }
+      }
+    });
+  }
+
+  return matches;
+}
+
+
+function isWellfoundJobListing() {
+  const element = document.getElementById("__NEXT_DATA__");
+  if (element !== null) {
+    const json_data = element.textContent;
+    return currentURL.includes("/jobs/");
+  }
+  return false;
+}
 
 function isJobListing() {
   const scriptTags = document.getElementsByTagName('script');
@@ -1019,10 +1022,95 @@ function replaceLinkWithGmailLink() {
     gmailLink.textContent = "Open Gmail";
     gmailLink.target = "_blank"; // Add target attribute to open in new window
     link.replaceWith(gmailLink);
-    //console.log("Link replaced with Gmail link");
-  } else {
-    //console.log("No link found in #stat div");
   }
+}
+
+function traverseAndPrint(jsonObj) {
+  let job_url = "";
+  const result = {};
+  if (jsonObj !== null && typeof jsonObj == "object") {
+    Object.entries(jsonObj).forEach(([key, value]) => {
+      if (key == "structuredData") {
+        if (value !== null) {
+          new_json_obj = JSON.parse(value);
+          result.hiringOrganizationName = new_json_obj.hiringOrganization.name;
+          result.hiringOrganizationSameAs = new_json_obj.hiringOrganization.sameAs;
+          result.title = new_json_obj.title;
+          result.description = new_json_obj.description;
+          result.datePosted = new Date(new_json_obj.datePosted).toISOString().slice(0, 10);
+          result.validThrough = new Date(new_json_obj.validThrough).toISOString().slice(0, 10);
+
+        }
+      }
+      if (key == "ogUrl") {
+        if (value && value.includes("jobs/")) {
+          result.ogUrl = value;
+          job_url = value;
+        }
+      }
+      if (typeof value === 'object' && value !== null) {
+        const subResult = traverseAndPrint(value);
+        Object.assign(result, subResult);
+      }
+    });
+  }
+  return result;
+}
+
+function extractWellfoundJobInfo() {
+
+
+
+  const json_data = document.getElementById("__NEXT_DATA__").textContent;
+
+  jsonObj = JSON.parse(json_data);
+  returned_data = traverseAndPrint(jsonObj);
+
+  const jobInfo = {};
+
+  if (returned_data !== null && typeof returned_data == "object") {
+
+    jobInfo.title = returned_data.title;
+    jobInfo.website = returned_data.hiringOrganizationSameAs;
+    jobInfo.company = returned_data.hiringOrganizationName;
+    jobInfo.datePosted = returned_data.datePosted;
+    jobInfo.description = returned_data.description;
+  }
+
+  if (!jobInfo.title) {
+    const titleElement = document.querySelector(".app-title");
+    if (titleElement) {
+      jobInfo.title = titleElement.textContent.trim();
+    }
+  }
+
+  if (!jobInfo.company) {
+    const companyNameElement = document.querySelector(".company-name");
+    if (companyNameElement) {
+      jobInfo.company = companyNameElement.textContent.trim().substring(3);
+    }
+  }
+
+  if (!jobInfo.location) {
+    const locationElement = document.querySelector(".location");
+    if (locationElement) {
+      jobInfo.location = locationElement.textContent.trim();
+    }
+  }
+
+  const bodyContent = document.body.textContent;
+  const salaryRangeRegex = /.*?(\$[0-9,]+k?(?:\.\d{2})?).*?(\$[0-9,]+k?(?:\.\d{2})?)/;
+
+  const salaryRangeMatch = bodyContent.match(salaryRangeRegex);
+
+  if (salaryRangeMatch) {
+    let minSalary = salaryRangeMatch[1].includes('k') ? parseFloat(salaryRangeMatch[1].replace(/[$,k]/g, '')) * 1000 : parseFloat(salaryRangeMatch[1].replace(/[$,]/g, ''));
+    let maxSalary = salaryRangeMatch[2].includes('k') ? parseFloat(salaryRangeMatch[2].replace(/[$,k]/g, '')) * 1000 : parseFloat(salaryRangeMatch[2].replace(/[$,]/g, ''));
+
+    jobInfo.salaryRange = `$${minSalary} - $${maxSalary}`;
+  }
+  return jobInfo;
+
 }
 
 function extractJobInfo() {
@@ -1066,10 +1154,7 @@ function extractJobInfo() {
 
   const bodyContent = document.body.textContent;
   const salaryRangeRegex = /.*?(\$[0-9,]+(?:\.\d{2})?).*?(\$[0-9,]+(?:\.\d{2})?)/;
-
   const salaryRangeMatch = bodyContent.match(salaryRangeRegex);
-
-  
   if (salaryRangeMatch) {
     jobInfo.salaryRange = `${salaryRangeMatch[1]} - ${salaryRangeMatch[2]}`;
   }
@@ -1078,8 +1163,8 @@ function extractJobInfo() {
 }
 
 async function sendJobInfoToBackend(jobInfo) {
-  //console.log(jobInfo);
   jobInfo.link = window.location.href;
+
 
 
   chrome.storage.sync.get("base_url", ({ base_url }) => {
@@ -1101,11 +1186,11 @@ async function sendJobInfoToBackend(jobInfo) {
               'X-CSRFToken': csrfToken,
             }
             fetch(full_url, {
-                method: 'POST',
-                credentials: 'include',
-                headers: headers,
-                body: JSON.stringify(jobInfo),
-              })
+              method: 'POST',
+              credentials: 'include',
+              headers: headers,
+              body: JSON.stringify(jobInfo),
+            })
               .then(response => {
                 if (!response.ok) {
                   alert('Network response was not ok', JSON.stringify(response));
@@ -1114,24 +1199,24 @@ async function sendJobInfoToBackend(jobInfo) {
                 return response.json();
               })
               .then(data => {
-               
+
                 //console.log(data);
               })
               .catch(error => {
                 alert('There was a problem with the fetch operation:', error)
                 console.error('There was a problem with the fetch operation:', error);
-                
+
               });
           } else {
             console.error('Session cookie not found');
             window.location = base_url + '/accounts/login/?from=gmail';
-           
+
           }
         });
       } else {
         console.error('Session cookie not found');
         window.location = base_url + '/accounts/login/?from=gmail';
-        
+
       }
     });
   });
@@ -1141,6 +1226,239 @@ function getCookie(name) {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
   if (parts.length === 2) return parts.pop().split(";").shift();
+}
+
+async function createWellfoundOverlay() {
+
+  const overlay = document.createElement("div");
+  overlay.id = "job-data-extractor-overlay";
+  overlay.style.position = "fixed";
+  overlay.style.top = "100px";
+  overlay.style.right = "0";
+  overlay.style.width = "300px";
+  overlay.style.height = "70%";
+  overlay.style.backgroundColor = "white";
+  overlay.style.zIndex = "10000";
+  overlay.style.overflowY = "auto";
+  overlay.style.padding = "10px";
+  overlay.style.boxShadow = "0 0 10px rgba(0, 0, 0, 0.2)";
+  document.body.appendChild(overlay);
+  
+  // Add event listeners for dragging the overlay
+  let isDragging = false;
+  let initialX;
+  let initialY;
+  let currentX;
+  let currentY;
+  let xOffset = 0;
+  let yOffset = 0;
+  
+  overlay.addEventListener("mousedown", dragStart);
+  document.addEventListener("mousemove", drag);
+  document.addEventListener("mouseup", dragEnd);
+  
+  function dragStart(event) {
+    initialX = event.clientX - xOffset;
+    initialY = event.clientY - yOffset;
+  
+    if (event.target === overlay) {
+      isDragging = true;
+    }
+  }
+  
+  function drag(event) {
+    if (isDragging) {
+      event.preventDefault();
+  
+      currentX = event.clientX - initialX;
+      currentY = event.clientY - initialY;
+  
+      xOffset = currentX;
+      yOffset = currentY;
+  
+      setTranslate(currentX, currentY, overlay);
+    }
+  }
+  
+  function dragEnd(event) {
+    initialX = currentX;
+    initialY = currentY;
+  
+    isDragging = false;
+  }
+  
+  function setTranslate(xPos, yPos, el) {
+    el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+  }
+  
+
+  const jobInfo = extractWellfoundJobInfo();
+  const emails = searchElement(document.body);
+  const form = document.createElement("form");
+  form.id = "job-data-extractor-form";
+  overlay.appendChild(form);
+
+
+  for (const key in jobInfo) {
+    const label = document.createElement("label");
+    label.htmlFor = `job-data-extractor-${key}`;
+    label.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)}:`;
+    form.appendChild(label);
+
+    const input = document.createElement("input");
+    input.id = `job-data-extractor-${key}`;
+    input.type = "text";
+    input.value = jobInfo[key];
+    input.style.width = "100%";
+    input.style.marginBottom = "10px";
+    form.appendChild(input);
+  }
+  const emailsfound = document.createElement("div");
+  let updatedEmails = []
+
+  chrome.storage.sync.get("email_address", ({ email_address }) => {
+    if (email_address) {
+      console.log(email_address);
+      updatedEmails = emails.filter(email => email !== email_address);
+      if (updatedEmails.length > 0) {
+        console.log('we are adding the emails');
+        String(updatedEmails).split(',').forEach(email => {
+          const emailLink = document.createElement('a');
+          emailLink.classList.add('emaillink');
+          emailLink.href = `https://mail.google.com/mail/u/0/?view=cm&fs=1&to=${email.trim()}&tf=1`;
+          emailLink.target = '_blank';
+          emailLink.textContent = email;
+          const lineBreak = document.createElement('br');
+
+          emailsfound.appendChild(emailLink);
+          emailsfound.appendChild(lineBreak);
+
+          emailsfound.style.width = "100%";
+          emailsfound.style.marginBottom = "10px";
+          emailsfound.style.border = "1px solid red";
+
+          form.appendChild(emailsfound);
+
+        });
+
+      }
+    }
+  });
+
+  const pingojoLink = document.createElement("a");
+  pingojoLink.href = "https://www.pingojo.com/search/?search=" + jobInfo.company;
+  pingojoLink.target = "_blank";
+  pingojoLink.textContent = "Search " + jobInfo.company + " on Pingojo";
+  pingojoLink.style.display = "block";
+  pingojoLink.style.marginBottom = "10px";
+  form.appendChild(pingojoLink);
+
+  const gmailLink = document.createElement("a");
+  jobInfo.company = '"' + jobInfo.company + '"';
+  gmailLink.href = "https://mail.google.com/mail/u/0/#search/" + jobInfo.company;
+  gmailLink.target = "_blank";
+  gmailLink.textContent = "Search Gmail for " + jobInfo.company;
+  gmailLink.style.display = "block";
+  gmailLink.style.marginBottom = "10px";
+  form.appendChild(gmailLink);
+
+  if (jobInfo.website) {
+    const websiteLink = document.createElement("a");
+    websiteLink.href = jobInfo.website;
+    websiteLink.target = "_blank";
+    websiteLink.textContent = "Visit " + jobInfo.company + " website";
+    websiteLink.style.display = "block";
+    websiteLink.style.marginBottom = "10px";
+    form.appendChild(websiteLink);
+
+  }
+
+  chrome.storage.sync.get("prompt_text", ({ prompt_text }) => {
+    var prompt_text = prompt_text || "Create a cover letter for:";
+    const copyToClipboardButton = document.createElement("button");
+    copyToClipboardButton.textContent = "Copy Prompt to Clipboard";
+    copyToClipboardButton.style.marginBottom = "10px";
+
+    const copyToClipboardInput = document.createElement("input");
+    copyToClipboardInput.style.display = "none";
+    form.appendChild(copyToClipboardButton);
+
+    copyToClipboardButton.addEventListener("click", (event) => {
+      event.preventDefault();
+
+      var hiringContactDiv = document.querySelector("div[class*='recruitingContact']");
+
+      if (hiringContactDiv) {
+        var hiringContact = hiringContactDiv.querySelector("a[href*='/u/']");
+
+
+        if (hiringContact) {
+          var hiringContactName = hiringContact.textContent;
+          prompt_text += " Address the cover letter to " + hiringContactName + "\n\n";
+        }
+      }
+
+      if (updatedEmails.length > 0) {
+        prompt_text += " also add a subject for email\n\n";
+      }
+
+      const descriptionInput = document.getElementById("job-data-extractor-description");
+      copyToClipboardInput.value = prompt_text + "\n\n the following is the information about the job, use it to generate the cover letter: " + descriptionInput.value;
+
+      copyToClipboardInput.select();
+
+      navigator.clipboard.writeText(copyToClipboardInput.value)
+        .then(() => {
+          copyToClipboardButton.textContent = "✓ Copied to Clipboard";
+
+        })
+        .catch(err => {
+          copyToClipboardButton.textContent = "Something went wrong" + err;
+        });
+    });
+    form.appendChild(copyToClipboardButton);
+  });
+
+
+  sendJobInfoToBackend(jobInfo);
+
+  applications = await getApplications();
+
+  const company = jobInfo.company;
+  const application = applications.find(application => application.company_name.toLowerCase() === company.toLowerCase());
+  if (application) {
+    const applicationInfo = document.createElement("div");
+    applicationInfo.style.marginBottom = "10px";
+    applicationInfo.style.padding = "10px";
+    applicationInfo.style.border = "1px solid #ccc";
+    applicationInfo.style.borderRadius = "5px";
+    applicationInfo.style.backgroundColor = "#eee";
+    applicationInfo.textContent = `You have already applied to ${application.job_role} at ${application.company_name} stage: ${application.stage_name}.`;
+
+    const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336']; // green, blue, orange, and red
+
+    if (application.stage_name === 'Applied') {
+      applicationInfo.style.backgroundColor = colors[0]
+    } else if (application.stage_name === 'Scheduled') {
+      applicationInfo.style.backgroundColor = colors[1]
+    } else if (application.stage_name === 'Next') {
+      applicationInfo.style.backgroundColor = colors[2]
+    } else if (application.stage_name === 'Passed') {
+      applicationInfo.style.backgroundColor = colors[3]
+    }
+
+
+    form.appendChild(applicationInfo);
+  }
+
+
+
+  const submitButton = document.createElement("button");
+  submitButton.type = "submit";
+  submitButton.style.display = "block";
+  submitButton.style.marginTop = "10px";
+  submitButton.textContent = "Submit";
+  form.appendChild(submitButton);
 }
 
 
@@ -1181,7 +1499,7 @@ function createOverlay() {
   }
 
   sendJobInfoToBackend(jobInfo);
-  
+
   const submitButton = document.createElement("button");
   submitButton.type = "submit";
   submitButton.textContent = "Submit";
@@ -1195,3 +1513,5 @@ for (const site in siteFunctions) {
     break;
   }
 }
+
+
