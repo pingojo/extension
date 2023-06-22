@@ -1,3 +1,5 @@
+
+
 async function highlightCompanyNames() {
   let companyNames = await getCompanyNames();
 
@@ -1567,3 +1569,33 @@ for (const site in siteFunctions) {
 }
 
 
+const emails = searchElement(document.body);
+
+if (emails.length > 0) {
+    // Create new div element
+    const newDiv = document.createElement("div");
+    newDiv.id = 'email-notification';
+  
+    // Styling the div
+    newDiv.style.position = 'fixed';
+    newDiv.style.top = '100px';
+    newDiv.style.right = '0px';
+    newDiv.style.zIndex = '1000';
+    newDiv.style.padding = '10px';
+    newDiv.style.backgroundColor = '#a8dadc';
+    newDiv.style.color = 'black';
+  
+    // Create the email list
+    const emailList = document.createElement('ul');
+    emails.forEach(email => {
+        let li = document.createElement('li');
+        li.textContent = email;
+        emailList.appendChild(li);
+    });
+
+    // Add the email list to the newDiv
+    newDiv.appendChild(emailList);
+  
+    // Add the newDiv to the page
+    document.body.appendChild(newDiv);
+}
