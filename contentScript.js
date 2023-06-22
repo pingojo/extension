@@ -1,5 +1,23 @@
 async function highlightCompanyNames() {
-  const companyNames = await getCompanyNames();
+  let companyNames = await getCompanyNames();
+
+  // Load application data
+  const applications = await new Promise((resolve) => {
+    chrome.storage.local.get('applications', ({ applications }) => {
+      resolve(applications || []);
+    });
+  });
+
+  // Map stage to corresponding color
+  const stageColor = {
+    'Applied': '8bc34a',
+    'Scheduled': '03a9f4',
+    'Next': 'ff9800',
+    'Passed': 'f44336'
+  };
+
+  // filter out empty or whitespace-only company names
+  companyNames = companyNames.filter(name => name.trim() !== '');
 
   function escapeRegExp(string) {
     return string.replace(/[.*+\-?^${}()|[\]\\]/g, '\\$&');
@@ -13,9 +31,22 @@ async function highlightCompanyNames() {
     while ((match = regex.exec(textNode.data)) !== null) {
       const span = document.createElement('span');
       span.className = 'highlighted-company';
-      span.style.backgroundColor = 'yellow';
 
       const matchedText = match[0];
+      const application = applications.find(app => app.company_name.toLowerCase() === matchedText.toLowerCase());
+
+      if (application) {
+
+        span.style.backgroundColor = '#' + stageColor[application.stage_name];
+        span.style.color = '#ffffff';
+        span.onclick = function() {
+          const slug = matchedText.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '');
+          window.open(`https://pingojo.com/company/${encodeURIComponent(slug)}/`, '_blank');
+        }
+      } else {
+        span.style.backgroundColor = 'yellow';
+      }
+
       const range = document.createRange();
       range.setStart(textNode, match.index);
       range.setEnd(textNode, match.index + matchedText.length);
@@ -48,6 +79,7 @@ async function highlightCompanyNames() {
   processNodes();
 }
 
+
 const style = document.createElement('style');
 style.textContent = `
   .highlighted-company {
@@ -56,7 +88,7 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-highlightCompanyNames();
+highlightCompanyNames(); 
 replaceLinkWithGmailLink();
 
 
@@ -210,9 +242,9 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
                   });
                 })
                 .catch(error => {
-                  alert('There was a problem with the fetch operation:', error)
-                  console.error('There was a problem with the fetch operation:', error);
-                  reject(error);
+                  alert('There was a problem with the fetch operation -- :' + JSON.stringify(error) + JSON.stringify(payload));
+                  console.error('There was a problem with the fetch operation -- :'+ JSON.stringify(error) + JSON.stringify(payload));
+                  reject(new Error(JSON.stringify(error)));
                 });
             } else {
               console.error('Session cookie not found');
@@ -645,9 +677,9 @@ async function fetchCountsAndApplicationsFromServer() {
                   resolve(counts);
                 })
                 .catch(error => {
-                  alert('There was a problem with the fetch operation:', error)
-                  console.error('There was a problem with the fetch operation:', error);
-                  reject(error);
+                  alert('There was a problem with the fetch operation -- :' + JSON.stringify(error) + JSON.stringify(payload));
+                  console.error('There was a problem with the fetch operation -- :'+ JSON.stringify(error) + JSON.stringify(payload));
+                  reject(new Error(JSON.stringify(error)));
                 });
             } else {
               console.error('Session cookie not found');
@@ -1197,14 +1229,20 @@ async function sendJobInfoToBackend(jobInfo) {
                   throw new Error('Network response was not ok');
                 }
                 return response.json();
-              })
-              .then(data => {
+              }).catch(error => {
+                jobInfo.description = "removed jd";
+                alert('There was a problem with the fetch operation it may be a cors issue -- :' + error + JSON.stringify(jobInfo));
+                console.error('There was a problem with the fetch operation it may be a cors issue -- :'+ error + JSON.stringify(jobInfo));
+                reject(new Error(JSON.stringify(error)));
+              }).then(data => {
 
                 //console.log(data);
               })
               .catch(error => {
-                alert('There was a problem with the fetch operation:', error)
-                console.error('There was a problem with the fetch operation:', error);
+                jobInfo.description = "removed jd";
+                alert('There was a problem with the data operation -- :' + JSON.stringify(error) + JSON.stringify(jobInfo));
+                console.error('There was a problem with the data operation -- :'+ JSON.stringify(error) + JSON.stringify(jobInfo));
+                reject(new Error(JSON.stringify(error)));
 
               });
           } else {
@@ -1360,6 +1398,18 @@ async function createWellfoundOverlay() {
   gmailLink.style.display = "block";
   gmailLink.style.marginBottom = "10px";
   form.appendChild(gmailLink);
+
+  const url = new URL(jobInfo.website);
+  const domain = url.hostname.replace("www.", "");
+
+
+  const googleLink = document.createElement("a");
+  googleLink.href = `https://www.google.com/search?q=site:${domain}+*@${domain}`;
+  googleLink.target = "_blank";
+  googleLink.textContent = `Search Google for email ${jobInfo.company}`;
+  googleLink.style.display = "block";
+  googleLink.style.marginBottom = "10px";
+  form.appendChild(googleLink);
 
   if (jobInfo.website) {
     const websiteLink = document.createElement("a");
