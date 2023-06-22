@@ -88,7 +88,10 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-highlightCompanyNames(); 
+if (!window.location.href.includes("pingojo.com")) {
+  highlightCompanyNames(); 
+}
+
 replaceLinkWithGmailLink();
 
 
