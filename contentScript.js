@@ -1569,6 +1569,7 @@ for (const site in siteFunctions) {
 }
 
 
+if (!window.location.href.includes("pingojo.com")) {
 const emails = searchElement(document.body);
 
 if (emails.length > 0) {
@@ -1598,4 +1599,5 @@ if (emails.length > 0) {
   
     // Add the newDiv to the page
     document.body.appendChild(newDiv);
+}
 }
