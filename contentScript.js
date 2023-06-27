@@ -151,7 +151,9 @@ const subjectTemplates = [
   /Following up your (.*) application/,
   /Update regarding your application to (.*)/,
   /Your application with (.*)/,
+  /Follow up on .* at (.*)/,
 ];
+
 
 observer.observe(document.body, {
   childList: true,
@@ -1570,34 +1572,45 @@ for (const site in siteFunctions) {
 
 
 if (!window.location.href.includes("pingojo.com")) {
-const emails = searchElement(document.body);
+  const emails = searchElement(document.body);
 
-if (emails.length > 0) {
+  if (emails.length > 0) {
     // Create new div element
     const newDiv = document.createElement("div");
-    newDiv.id = 'email-notification';
-  
+    newDiv.id = "email-notification";
+
     // Styling the div
-    newDiv.style.position = 'fixed';
-    newDiv.style.top = '100px';
-    newDiv.style.right = '0px';
-    newDiv.style.zIndex = '1000';
-    newDiv.style.padding = '10px';
-    newDiv.style.backgroundColor = '#a8dadc';
-    newDiv.style.color = 'black';
-  
+    newDiv.style.position = "fixed";
+    newDiv.style.top = "100px";
+    newDiv.style.right = "0px";
+    newDiv.style.zIndex = "1000";
+    newDiv.style.padding = "10px";
+    newDiv.style.backgroundColor = "#a8dadc";
+    newDiv.style.color = "black";
+
+    // Create close button
+    const closeButton = document.createElement("button");
+    closeButton.textContent = "Close";
+    closeButton.style.marginTop = "10px";
+    closeButton.addEventListener("click", () => {
+      newDiv.remove();
+    });
+
+    // Add the close button to the newDiv
+    newDiv.appendChild(closeButton);
+
     // Create the email list
-    const emailList = document.createElement('ul');
+    const emailList = document.createElement("ul");
     emails.forEach(email => {
-        let li = document.createElement('li');
-        li.textContent = email;
-        emailList.appendChild(li);
+      let li = document.createElement("li");
+      li.textContent = email;
+      emailList.appendChild(li);
     });
 
     // Add the email list to the newDiv
     newDiv.appendChild(emailList);
-  
+
     // Add the newDiv to the page
     document.body.appendChild(newDiv);
-}
+  }
 }
