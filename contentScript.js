@@ -1811,22 +1811,26 @@ if (!window.location.href.includes("pingojo.com")) {
     // Add the close button to the newDiv
     newDiv.appendChild(closeButton);
 
+    const emailList = document.createElement("ul");
     // Create the email list
     chrome.storage.sync.get("email_address", ({ email_address }) => {
-      const emailList = document.createElement("ul");
+      
       emails.forEach(email => {
-        if (email !== email_address && email !== "info@example.com") {
-        let li = document.createElement("li");
-        li.textContent = email;
-        emailList.appendChild(li);
+        if (!email.includes(email_address) && email !== "info@example.com") {
+          let li = document.createElement("li");
+          li.textContent = email;
+          emailList.appendChild(li);
         }
       });
     });
-
+    if(emails.length > 0){
     // Add the email list to the newDiv
     newDiv.appendChild(emailList);
 
     // Add the newDiv to the page
     document.body.appendChild(newDiv);
+    }
+
+
   }
 }
