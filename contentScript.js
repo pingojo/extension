@@ -980,12 +980,12 @@ const siteFunctions = {
   },
   'greenhouse.io': function () {
     if (isJobListing()) {
-      createGreenhouseOverlay();
+      createOverlay("greenhouse");
     }
   },
   'wellfound.com': function () {
     if (isWellfoundJobListing()) {
-      createWellfoundOverlay();
+      createOverlay("wellfound");
     }
   }
 };
@@ -1161,7 +1161,7 @@ function extractWellfoundJobInfo() {
 
 }
 
-function extractJobInfo() {
+function extractGreenhouseJobInfo() {
   const jobInfo = {};
 
   const scriptTags = document.getElementsByTagName('script');
@@ -1282,7 +1282,8 @@ function getCookie(name) {
   if (parts.length === 2) return parts.pop().split(";").shift();
 }
 
-async function createWellfoundOverlay() {
+
+async function createOverlay(jobsite) {
 
   const overlay = document.createElement("div");
   overlay.id = "job-data-extractor-overlay";
@@ -1345,8 +1346,13 @@ async function createWellfoundOverlay() {
     el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
   }
   
+  var jobInfo = {};
 
-  const jobInfo = extractWellfoundJobInfo();
+  if(jobsite === "wellfound"){
+    jobInfo = extractWellfoundJobInfo();
+  }else if(jobsite === "greenhouse"){
+    jobInfo = extractGreenhouseJobInfo();
+  }
   const emails = searchElement(document.body);
   const form = document.createElement("form");
   form.id = "job-data-extractor-form";
@@ -1413,18 +1419,20 @@ async function createWellfoundOverlay() {
   gmailLink.style.display = "block";
   gmailLink.style.marginBottom = "10px";
   form.appendChild(gmailLink);
-
-  const url = new URL(jobInfo.website);
-  const domain = url.hostname.replace("www.", "");
-
-
-  const googleLink = document.createElement("a");
-  googleLink.href = `https://www.google.com/search?q=site:${domain}+*@${domain}`;
-  googleLink.target = "_blank";
-  googleLink.textContent = `Search Google for email ${jobInfo.company}`;
-  googleLink.style.display = "block";
-  googleLink.style.marginBottom = "10px";
-  form.appendChild(googleLink);
+  
+  if(jobsite === "wellfound"){
+    const url = new URL(jobInfo.website);
+    const domain = url.hostname.replace("www.", "");
+  
+  
+    const googleLink = document.createElement("a");
+    googleLink.href = `https://www.google.com/search?q=site:${domain}+*@${domain}`;
+    googleLink.target = "_blank";
+    googleLink.textContent = `Search Google for email ${jobInfo.company}`;
+    googleLink.style.display = "block";
+    googleLink.style.marginBottom = "10px";
+    form.appendChild(googleLink);
+  }
 
   if (jobInfo.website) {
     const websiteLink = document.createElement("a");
@@ -1486,255 +1494,6 @@ async function createWellfoundOverlay() {
 
 
   sendJobInfoToBackend(jobInfo);
-
-  applications = await getApplications();
-
-  const company = jobInfo.company;
-  const application = applications.find(application => application.company_name.toLowerCase() === company.toLowerCase());
-  if (application) {
-    const applicationInfo = document.createElement("div");
-    applicationInfo.style.marginBottom = "10px";
-    applicationInfo.style.padding = "10px";
-    applicationInfo.style.border = "1px solid #ccc";
-    applicationInfo.style.borderRadius = "5px";
-    applicationInfo.style.backgroundColor = "#eee";
-    applicationInfo.textContent = `You have already applied to ${application.job_role} at ${application.company_name} stage: ${application.stage_name}.`;
-
-    const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336']; // green, blue, orange, and red
-
-    if (application.stage_name === 'Applied') {
-      applicationInfo.style.backgroundColor = colors[0]
-    } else if (application.stage_name === 'Scheduled') {
-      applicationInfo.style.backgroundColor = colors[1]
-    } else if (application.stage_name === 'Next') {
-      applicationInfo.style.backgroundColor = colors[2]
-    } else if (application.stage_name === 'Passed') {
-      applicationInfo.style.backgroundColor = colors[3]
-    }
-
-
-    form.appendChild(applicationInfo);
-  }
-
-
-
-  const submitButton = document.createElement("button");
-  submitButton.type = "submit";
-  submitButton.style.display = "block";
-  submitButton.style.marginTop = "10px";
-  submitButton.textContent = "Submit";
-  form.appendChild(submitButton);
-}
-
-
-async function createGreenhouseOverlay() {
-
-  const overlay = document.createElement("div");
-  overlay.id = "job-data-extractor-overlay";
-  overlay.style.position = "fixed";
-  overlay.style.top = "100px";
-  overlay.style.right = "0";
-  overlay.style.width = "300px";
-  overlay.style.height = "70%";
-  overlay.style.backgroundColor = "white";
-  overlay.style.zIndex = "10000";
-  overlay.style.overflowY = "auto";
-  overlay.style.padding = "10px";
-  overlay.style.boxShadow = "0 0 10px rgba(0, 0, 0, 0.2)";
-  document.body.appendChild(overlay);
-  
-  // Add event listeners for dragging the overlay
-  let isDragging = false;
-  let initialX;
-  let initialY;
-  let currentX;
-  let currentY;
-  let xOffset = 0;
-  let yOffset = 0;
-  
-  overlay.addEventListener("mousedown", dragStart);
-  document.addEventListener("mousemove", drag);
-  document.addEventListener("mouseup", dragEnd);
-  
-  function dragStart(event) {
-    initialX = event.clientX - xOffset;
-    initialY = event.clientY - yOffset;
-  
-    if (event.target === overlay) {
-      isDragging = true;
-    }
-  }
-  
-  function drag(event) {
-    if (isDragging) {
-      event.preventDefault();
-  
-      currentX = event.clientX - initialX;
-      currentY = event.clientY - initialY;
-  
-      xOffset = currentX;
-      yOffset = currentY;
-  
-      setTranslate(currentX, currentY, overlay);
-    }
-  }
-  
-  function dragEnd(event) {
-    initialX = currentX;
-    initialY = currentY;
-  
-    isDragging = false;
-  }
-  
-  function setTranslate(xPos, yPos, el) {
-    el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
-  }
-  
-
-  const jobInfo = extractJobInfo();
-  const emails = searchElement(document.body);
-  const form = document.createElement("form");
-  form.id = "job-data-extractor-form";
-  overlay.appendChild(form);
-
-  for (const key in jobInfo) {
-    const label = document.createElement("label");
-    label.htmlFor = `job-data-extractor-${key}`;
-    label.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)}:`;
-    form.appendChild(label);
-
-    const input = document.createElement("input");
-    input.id = `job-data-extractor-${key}`;
-    input.type = "text";
-    input.value = jobInfo[key];
-    input.style.width = "100%";
-    input.style.marginBottom = "10px";
-    form.appendChild(input);
-  }
-  const emailsfound = document.createElement("div");
-  let updatedEmails = []
-
-  chrome.storage.sync.get("email_address", ({ email_address }) => {
-    if (email_address) {
-      updatedEmails = emails.filter(email => email !== email_address);
-      if (updatedEmails.length > 0) {
-        console.log('we are adding the emails');
-        String(updatedEmails).split(',').forEach(email => {
-          const emailLink = document.createElement('a');
-          emailLink.classList.add('emaillink');
-          emailLink.href = `https://mail.google.com/mail/u/0/?view=cm&fs=1&to=${email.trim()}&tf=1`;
-          emailLink.target = '_blank';
-          emailLink.textContent = email;
-          const lineBreak = document.createElement('br');
-
-          emailsfound.appendChild(emailLink);
-          emailsfound.appendChild(lineBreak);
-
-          emailsfound.style.width = "100%";
-          emailsfound.style.marginBottom = "10px";
-          emailsfound.style.border = "1px solid red";
-
-          form.appendChild(emailsfound);
-
-        });
-
-      }
-    }
-  });
-
-  const pingojoLink = document.createElement("a");
-  pingojoLink.href = "https://www.pingojo.com/search/?search=" + jobInfo.company;
-  pingojoLink.target = "_blank";
-  pingojoLink.textContent = "Search " + jobInfo.company + " on Pingojo";
-  pingojoLink.style.display = "block";
-  pingojoLink.style.marginBottom = "10px";
-  form.appendChild(pingojoLink);
-
-  const gmailLink = document.createElement("a");
-  gmailLink.href = "https://mail.google.com/mail/u/0/#search/" + '"' + jobInfo.company + '"';
-  gmailLink.target = "_blank";
-  gmailLink.textContent = "Search Gmail for " + jobInfo.company;
-  gmailLink.style.display = "block";
-  gmailLink.style.marginBottom = "10px";
-  form.appendChild(gmailLink);
-
-  // Function to convert a string to a slug
-  function slugify(str) {
-    return str.toLowerCase().replace(/[^\w ]+/g,'').replace(/ +/g,'-');
-  }
-
-  // Replace jobInfo.website with guessed website based on jobInfo.company
-  const guessedWebsite = slugify(jobInfo.company) + '.com';
-  const url = new URL(`https://${guessedWebsite}`);
-  const domain = url.hostname.replace("www.", "");
-
-  const googleLink = document.createElement("a");
-  googleLink.href = `https://www.google.com/search?q=site:${domain}+*@${domain}`;
-  googleLink.target = "_blank";
-  googleLink.textContent = `Search Google for emails related to ${jobInfo.company}`;
-  googleLink.style.display = "block";
-  googleLink.style.marginBottom = "10px";
-  form.appendChild(googleLink);
-
-  if (url) {
-    const websiteLink = document.createElement("a");
-    websiteLink.href = url;
-    websiteLink.target = "_blank";
-    websiteLink.textContent = "Visit " + jobInfo.company + " website";
-    websiteLink.style.display = "block";
-    websiteLink.style.marginBottom = "10px";
-    form.appendChild(websiteLink);
-
-  }
-
-  chrome.storage.sync.get("prompt_text", ({ prompt_text }) => {
-    var prompt_text = prompt_text || "Create a cover letter for:";
-    const copyToClipboardButton = document.createElement("button");
-    copyToClipboardButton.textContent = "Copy Prompt to Clipboard";
-    copyToClipboardButton.style.marginBottom = "10px";
-
-    const copyToClipboardInput = document.createElement("input");
-    copyToClipboardInput.style.display = "none";
-    form.appendChild(copyToClipboardButton);
-
-    copyToClipboardButton.addEventListener("click", (event) => {
-      event.preventDefault();
-
-      var hiringContactDiv = document.querySelector("div[class*='recruitingContact']");
-
-      if (hiringContactDiv) {
-        var hiringContact = hiringContactDiv.querySelector("a[href*='/u/']");
-
-
-        if (hiringContact) {
-          var hiringContactName = hiringContact.textContent;
-          prompt_text += " Address the cover letter to " + hiringContactName + "\n\n";
-        }
-      }
-
-      if (updatedEmails.length > 0) {
-        prompt_text += " also add a subject for email\n\n";
-      }
-
-      const descriptionInput = document.getElementById("job-data-extractor-description");
-      copyToClipboardInput.value = prompt_text + "\n\n the following is the information about the job, use it to generate the cover letter: " + descriptionInput.value;
-
-      copyToClipboardInput.select();
-
-      navigator.clipboard.writeText(copyToClipboardInput.value)
-        .then(() => {
-          copyToClipboardButton.textContent = "✓ Copied to Clipboard";
-
-        })
-        .catch(err => {
-          copyToClipboardButton.textContent = "Something went wrong" + err;
-        });
-    });
-    form.appendChild(copyToClipboardButton);
-  });
-
-
-  return_result = sendJobInfoToBackend(jobInfo);
 
   applications = await getApplications();
 
