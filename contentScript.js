@@ -230,8 +230,9 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
               })
                 .then(response => {
                   if (!response.ok) {
-                    alert('Network response was not ok', JSON.stringify(response));
-                    throw new Error('Network response was not ok');
+                    //print response code
+                    alert('Network response was not ok 1' + JSON.stringify(response) + JSON.stringify(response.status));
+                    throw new Error('Network response was not ok 2', JSON.stringify(response) + JSON.stringify(response.status));
                   }
                   return response.json();
                 })
@@ -662,8 +663,8 @@ async function fetchCountsAndApplicationsFromServer() {
               })
                 .then(response => {
                   if (!response.ok) {
-                    alert('Network response was not ok', JSON.stringify(response));
-                    throw new Error('Network response was not ok');
+                    alert('Network response was not ok 3', JSON.stringify(response));
+                    throw new Error('Network response was not ok 4', JSON.stringify(response));
                   }
                   return response.json();
                 })
@@ -1240,8 +1241,8 @@ async function sendJobInfoToBackend(jobInfo) {
             })
               .then(response => {
                 if (!response.ok) {
-                  alert('Network response was not ok', JSON.stringify(response));
-                  throw new Error('Network response was not ok');
+                  alert('Network response was not ok 5', JSON.stringify(response));
+                  throw new Error('Network response was not ok 6', JSON.stringify(response));
                 }
                 return response.json();
               }).catch(error => {
@@ -1787,11 +1788,9 @@ if (!window.location.href.includes("pingojo.com")) {
   const emails = searchElement(document.body);
 
   if (emails.length > 0) {
-    // Create new div element
     const newDiv = document.createElement("div");
     newDiv.id = "email-notification";
 
-    // Styling the div
     newDiv.style.position = "fixed";
     newDiv.style.top = "100px";
     newDiv.style.right = "0px";
@@ -1800,7 +1799,6 @@ if (!window.location.href.includes("pingojo.com")) {
     newDiv.style.backgroundColor = "#a8dadc";
     newDiv.style.color = "black";
 
-    // Create close button
     const closeButton = document.createElement("button");
     closeButton.textContent = "Close";
     closeButton.style.marginTop = "10px";
@@ -1808,29 +1806,23 @@ if (!window.location.href.includes("pingojo.com")) {
       newDiv.remove();
     });
 
-    // Add the close button to the newDiv
     newDiv.appendChild(closeButton);
 
     const emailList = document.createElement("ul");
-    // Create the email list
     chrome.storage.sync.get("email_address", ({ email_address }) => {
       
       emails.forEach(email => {
-        if (!email.includes(email_address) && email !== "info@example.com") {
+        if (!email.includes(email_address) && (email !== "info@example.com")) {
           let li = document.createElement("li");
           li.textContent = email;
           emailList.appendChild(li);
         }
       });
+
+      if(emailList.children.length > 0){
+        newDiv.appendChild(emailList);
+        document.body.appendChild(newDiv);
+      }
     });
-    if(emails.length > 0){
-    // Add the email list to the newDiv
-    newDiv.appendChild(emailList);
-
-    // Add the newDiv to the page
-    document.body.appendChild(newDiv);
-    }
-
-
   }
 }
