@@ -979,13 +979,18 @@ const siteFunctions = {
     injectStylesheet();
   },
   'greenhouse.io': function () {
-    if (isJobListing()) {
+    if (isGreenhouseJobListing()) {
       createOverlay("greenhouse");
     }
   },
   'wellfound.com': function () {
     if (isWellfoundJobListing()) {
       createOverlay("wellfound");
+    }
+  },
+  'pythoncodingjobs.com': function () {
+    if (isPythonCodingJobsJobListing()) {
+      createOverlay("pythoncodingjobs");
     }
   }
 };
@@ -1039,17 +1044,26 @@ function searchElement(element) {
   return matches;
 }
 
+function isPythonCodingJobsJobListing() {
+  const element = document.getElementsByClassName("h2 mb-4");
+
+  if (element !== null) {
+    if(element[0].textContent == "Job Detail"){
+    return currentURL.includes("/jobs/");
+    }
+  }
+  return false;
+}
 
 function isWellfoundJobListing() {
   const element = document.getElementById("__NEXT_DATA__");
   if (element !== null) {
-    const json_data = element.textContent;
     return currentURL.includes("/jobs/");
   }
   return false;
 }
 
-function isJobListing() {
+function isGreenhouseJobListing() {
   const scriptTags = document.getElementsByTagName('script');
   for (const scriptTag of scriptTags) {
     if (scriptTag.type === 'application/ld+json') {
@@ -1104,6 +1118,43 @@ function traverseAndPrint(jsonObj) {
   }
   return result;
 }
+
+function extractPythonCodingJobsJobInfo() {
+  const jobInfo = {};
+
+  const titleElement = document.querySelector(".col-sm-8 h4");
+  const companyElement = document.querySelector(".col-sm-8 .text-muted");
+
+  if (titleElement) {
+    jobInfo.title = titleElement.textContent.trim();
+  }
+
+  if (companyElement) {
+    jobInfo.company = companyElement.textContent.trim();
+  }
+
+  const descriptionElement = document.querySelector(".col-lg-12.mb-2-2");
+
+  if (descriptionElement) {
+    jobInfo.description = descriptionElement.innerHTML.trim();
+  }
+
+  const companyDetailsElements = document.querySelectorAll(".widget .card-body.p-4 ul.list-style5 li");
+  companyDetailsElements.forEach((element) => {
+    let [key, ...value] = element.textContent.split(' ');
+    value = value.join(' ');  // Join the remaining words back into a single string
+    key = 'company' + key.charAt(0).toUpperCase() + key.slice(1).toLowerCase().replace(':', '');
+    jobInfo[key] = value.trim();
+  });
+
+  if(jobInfo.companyEmail){
+    //extract the website from the email
+    jobInfo.website = "https://"+jobInfo.companyEmail.split("@")[1];
+  }
+  return jobInfo;
+}
+
+
 
 function extractWellfoundJobInfo() {
 
@@ -1352,6 +1403,8 @@ async function createOverlay(jobsite) {
     jobInfo = extractWellfoundJobInfo();
   }else if(jobsite === "greenhouse"){
     jobInfo = extractGreenhouseJobInfo();
+  }else if(jobsite === "pythoncodingjobs"){
+    jobInfo = extractPythonCodingJobsJobInfo();
   }
   const emails = searchElement(document.body);
   const form = document.createElement("form");
@@ -1543,7 +1596,7 @@ for (const site in siteFunctions) {
 }
 
 
-if (!window.location.href.includes("pingojo.com")) {
+if (!window.location.href.includes("pingojo.com") && !window.location.href.includes("google.com")) {
   const emails = searchElement(document.body);
 
   if (emails.length > 0) {
