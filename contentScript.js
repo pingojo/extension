@@ -1,3 +1,5 @@
+const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336']; // green, blue, orange, and red
+
 const waitForViewMessageLink = setInterval(() => {
   const elementsWithViewMessage = Array.from(document.querySelectorAll('*')).filter(element => element.textContent === 'View message');
   if (elementsWithViewMessage.length > 0) {
@@ -260,18 +262,15 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
                 .catch(error => {
                   alert('There was a problem with the fetch operation -- :' + JSON.stringify(error) + JSON.stringify(payload));
                   console.error('There was a problem with the fetch operation -- :'+ JSON.stringify(error) + JSON.stringify(payload));
-                  reject(new Error(JSON.stringify(error)));
                 });
             } else {
               console.error('Session cookie not found');
               window.location = base_url + '/accounts/login/?from=gmail';
-              reject(new Error('Session cookie not found'));
             }
           });
         } else {
           console.error('Session cookie not found');
           window.location = base_url + '/accounts/login/?from=gmail';
-          reject(new Error('Session cookie not found'));
         }
       });
     });
@@ -378,18 +377,104 @@ function createDetailButton(label, spinner, checkmark) {
   button.textContent = label;
   button.style.margin = '5px';
   button.style.padding = '5px';
-  button.style.backgroundColor = '#4285f4';
+  button.style.backgroundColor = '#ccc';
   button.style.color = 'white';
   button.style.border = 'none';
   button.style.borderRadius = '5px';
   button.style.cursor = 'pointer';
+  button.style.fontWeight = 'bold';
+  
+  //set the hover colors
+  button.addEventListener("mouseover", function() {
+    if (label === 'Applied') {
+      button.style.backgroundColor = colors[0];
+    } else if (label === 'Scheduled') {
+      button.style.backgroundColor = colors[1];
+    } else if (label === 'Next') {
+      button.style.backgroundColor = colors[2];
+    } else {
+      button.style.backgroundColor = colors[3];
+    }
+  });
+  button.addEventListener("mouseout", function() {
+    //if button has a border
+    //alert(button.style.border);
+    if (button.style.border !== '1px solid rgb(0, 0, 0)') {
+      button.style.backgroundColor = '#ccc';
+    }
+
+  });
+
+
+
   button.onclick = function () {
     spinner.style.display = 'block';
     sendDetailInfoToDRF(label)
       .then(() => {
         spinner.style.display = 'none';
         checkmark.style.display = 'block';
-        button.style.backgroundColor = 'grey';
+        //set the other buttons to white
+        toolbar = document.querySelector('#company_toolbar');
+        //queryselector for *_button 
+        //set the other buttons to ccc
+        //toolbar.querySelectorAll('.stage_button').forEach(button => {
+        toolbar.querySelector('#applied_button').style.border = 'none';
+        toolbar.querySelector('#scheduled_button').style.border = 'none';
+        toolbar.querySelector('#next_button').style.border = 'none';
+        toolbar.querySelector('#passed_button').style.border = 'none';
+        
+        toolbar.querySelector('#applied_button').style.backgroundColor = '#ccc';
+        toolbar.querySelector('#scheduled_button').style.backgroundColor = '#ccc';
+        toolbar.querySelector('#next_button').style.backgroundColor = '#ccc';
+        toolbar.querySelector('#passed_button').style.backgroundColor = '#ccc';
+
+
+
+      if (label === 'Applied') {
+        button.style.backgroundColor = colors[0]
+      } else if (label === 'Scheduled') {
+        button.style.backgroundColor = colors[1]
+      } else if (label === 'Next') {
+        button.style.backgroundColor = colors[2]
+      } else if (label === 'Passed') {
+        button.style.backgroundColor = colors[3]
+      }
+        button.style.border = '1px solid #000';
+
+        chrome.storage.local.get('applications', function (result) {
+          const applications = result.applications;
+          const companyName = document.querySelector('#company_input_field').value;
+          let isMatchFound = false;
+        
+          for (let i = 0; i < applications.length; i++) {
+            if (applications[i].company_name === companyName) {        
+              applications[i].stage_name = label;
+              isMatchFound = true;
+            }
+          }
+        
+          if (isMatchFound) {
+            chrome.storage.local.set({ 'applications': applications }, function () {
+              console.log('Updated applications have been saved.');
+        
+              // Reload the applications with the new value
+              chrome.storage.local.get('applications', function (result) {
+                console.log('Value currently is ', result.applications);
+              });
+            });
+          }
+        });
+        
+        companyInput.value = application.company_name;
+        const buttonContainer = toolbar.querySelector('.button_container');
+        const linkToCrm = createLinkToCrm(companyInput.value);
+        buttonContainer.appendChild(linkToCrm);
+      
+        const linkToPingojo = document.createElement('a');
+      
+        linkToPingojo.setAttribute('href', 'https://pingojo.com/company/' + application.company_slug);
+        linkToPingojo.textContent = "View " + companyInput.value + " on Pingojo";
+        buttonContainer.appendChild(linkToPingojo);
 
       })
       .catch((error) => {
@@ -552,7 +637,7 @@ function createPingojoEntry(counts) {
   entryContainer.style.flexDirection = 'column';
   entryContainer.style.alignItems = 'center';
 
-  const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336']; // green, blue, orange, and red
+  
 
   const iconContainer = document.createElement('div');
   iconContainer.style.display = 'grid';
@@ -663,8 +748,8 @@ async function fetchCountsAndApplicationsFromServer() {
               })
                 .then(response => {
                   if (!response.ok) {
-                    alert('Network response was not ok 3', JSON.stringify(response));
-                    throw new Error('Network response was not ok 4', JSON.stringify(response));
+                    alert('Network response was not ok 3' + JSON.stringify(response) + JSON.stringify(response.status));
+                    throw new Error('Network response was not ok 4', JSON.stringify(response) + JSON.stringify(response.status));
                   }
                   return response.json();
                 })
@@ -687,7 +772,7 @@ async function fetchCountsAndApplicationsFromServer() {
                   }));
 
                   chrome.storage.local.set({ applications }, () => {
-                    //console.log('Applications stored:', applications);
+                    console.log('Applications stored:', applications);
                   });
 
                   resolve(counts);
@@ -695,18 +780,15 @@ async function fetchCountsAndApplicationsFromServer() {
                 .catch(error => {
                   alert('There was a problem with the fetch operation -- :' + JSON.stringify(error) + JSON.stringify(payload));
                   console.error('There was a problem with the fetch operation -- :'+ JSON.stringify(error) + JSON.stringify(payload));
-                  reject(new Error(JSON.stringify(error)));
                 });
             } else {
               console.error('Session cookie not found');
               window.location = base_url + '/accounts/login/?from=gmail';
-              reject(new Error('Session cookie not found'));
             }
           });
         } else {
           console.error('Session cookie not found');
           window.location = base_url + '/accounts/login/?from=gmail';
-          reject(new Error('Session cookie not found'));
         }
       });
     });
@@ -721,20 +803,6 @@ function addPingojoEntry(count) {
     const pingojoEntry = createPingojoEntry(counts);
     sidebar.appendChild(pingojoEntry);
   }
-}
-
-function createButton(label, callback) {
-  const button = document.createElement('button');
-  button.textContent = label;
-  button.style.margin = '5px';
-  button.style.padding = '5px';
-  button.style.backgroundColor = '#4285f4';
-  button.style.color = 'white';
-  button.style.border = 'none';
-  button.style.borderRadius = '5px';
-  button.style.cursor = 'pointer';
-  button.onclick = callback;
-  return button;
 }
 
 
@@ -778,8 +846,6 @@ function addButtonAndInput() {
       emailContainer.parentNode.insertBefore(toolbar, emailContainer);
 
       autoSubmitAppliedButton();
-    } else {
-      //console.log('emailContainer && subjectElement not found');
     }
   };
   setTimeout(addToolbar, 100);
@@ -817,19 +883,32 @@ function setInputValues(toolbar, application) {
   const buttonContainer = toolbar.querySelector('.button_container');
   const linkToCrm = createLinkToCrm(companyInput.value);
   buttonContainer.appendChild(linkToCrm);
-}
+
+  const linkToPingojo = document.createElement('a');
+
+  linkToPingojo.setAttribute('href', 'https://pingojo.com/company/' + application.company_slug);
+  linkToPingojo.textContent = "View " + companyInput.value + " on Pingojo";
+  buttonContainer.appendChild(linkToPingojo);
+
+  }
 
 function setButtonState(toolbar, application) {
   const stageButton = toolbar.querySelector(`#${application.stage_name.toLowerCase()}_button`);
-  const otherButtons = toolbar.querySelectorAll('.stage_button:not(#' + application.stage_name.toLowerCase() + '_button)');
 
   if (stageButton) {
-    stageButton.style.backgroundColor = 'grey';
+    if (application.stage_name === 'Applied') {
+      stageButton.style.backgroundColor = colors[0];
+    } else if (application.stage_name === 'Scheduled') {
+      stageButton.style.backgroundColor = colors[1];
+    } else if (application.stage_name === 'Next') {
+      stageButton.style.backgroundColor = colors[2];
+    } else {
+      stageButton.style.backgroundColor = colors[3];
+    }
+    stageButton.style.border = '1px solid #000';
   } else {
     console.error('Stage button not found:', application.stage_name);
   }
-
-  otherButtons.forEach(button => button.style.backgroundColor = '');
 }
 
 
@@ -872,7 +951,7 @@ function createLinkToCrm(companyName) {
   const linkToCrm = document.createElement('a');
   if (companyName) {
     linkToCrm.setAttribute('href', 'https://mail.google.com/mail/u/0/#search/' + companyName);
-    linkToCrm.textContent = companyName;
+    linkToCrm.textContent = "Search email for" + companyName;
   }
   return linkToCrm;
 }
@@ -892,7 +971,6 @@ function findLinkElement() {
 
   return null;
 }
-
 function createToolbar() {
   const toolbar = document.createElement('div');
   toolbar.setAttribute('id', 'company_toolbar');
@@ -900,24 +978,31 @@ function createToolbar() {
   toolbar.style.flexDirection = 'column';
   toolbar.style.alignItems = 'center';
   toolbar.style.padding = '10px';
+  toolbar.style.width = '100%';
+  toolbar.style.position = 'relative'; // add this line to make the toolbar positioned
 
   const inputContainer = document.createElement('div');
   inputContainer.style.display = 'flex';
-  toolbar.appendChild(inputContainer);
+  inputContainer.style.width = '100%';
 
-  const inputField = document.createElement('input');
-  inputField.setAttribute('id', 'role_input_field');
-  inputField.style.marginRight = '10px';
-  inputField.style.width = '150px';
-  inputField.placeholder = 'Role';
-  inputContainer.appendChild(inputField);
+  toolbar.appendChild(inputContainer);
 
   const inputField2 = document.createElement('input');
   inputField2.setAttribute('id', 'company_input_field');
   inputField2.style.marginRight = '10px';
-  inputField2.style.width = '200px';
+  inputField2.style.width = '50%';
+  inputField2.style.marginLeft = '72px';
   inputField2.placeholder = 'Company';
+  inputField2.setAttribute('autocomplete', 'off');
+
   inputContainer.appendChild(inputField2);
+
+  const inputField = document.createElement('input');
+  inputField.setAttribute('id', 'role_input_field');
+  inputField.style.marginRight = '10px';
+  inputField.style.width = '50%';
+  inputField.placeholder = 'Role';
+  inputContainer.appendChild(inputField);
 
   const spinner = document.createElement('div');
   spinner.classList.add('spinner');
@@ -958,6 +1043,49 @@ function createToolbar() {
   passedButton.id = 'passed_button';
   buttonContainer.appendChild(passedButton);
 
+  chrome.storage.local.get('applications', function(data) {
+    let applications = data.applications;
+
+    let companyRolePairs = [...new Map(applications.map(app => [app.company_name, app.job_role])).entries()];
+
+    inputField2.addEventListener('keyup', function(e) {
+      const existingAutocomplete = document.getElementById('autocomplete');
+      if (existingAutocomplete) existingAutocomplete.remove();
+
+      let autocompleteList = document.createElement('div');
+      autocompleteList.setAttribute('id', 'autocomplete');
+      autocompleteList.style.position = 'absolute';
+      autocompleteList.style.zIndex = '1000'; // Add this to ensure the element is layered above others
+      autocompleteList.style.left = inputField2.offsetLeft + 'px';
+      autocompleteList.style.top = inputField2.offsetTop + inputField2.offsetHeight + 'px';
+      autocompleteList.style.width = inputField2.offsetWidth + 'px';
+      autocompleteList.style.backgroundColor = '#ffffff'; // This should be solid white
+      autocompleteList.style.border = '1px solid #ccc';
+      toolbar.appendChild(autocompleteList);
+      
+
+      const input = e.target.value.toLowerCase();
+      const matches = companyRolePairs.filter(([company, role]) => company.toLowerCase().startsWith(input));
+      matches.forEach(([company, role]) => {
+        let option = document.createElement('div');
+        option.textContent = `${company} (${role})`;
+        option.style.padding = '5px';
+        option.addEventListener('mouseover', function() {
+          option.style.backgroundColor = '#f0f0f0';
+        });
+        option.addEventListener('mouseout', function() {
+          option.style.backgroundColor = '#fff';
+        });
+        option.addEventListener('click', function() {
+          inputField2.value = company;
+          inputField.value = role;
+          autocompleteList.remove();
+        });
+        autocompleteList.appendChild(option);
+      });
+    });
+  });
+
   return toolbar;
 }
 
@@ -979,18 +1107,23 @@ const siteFunctions = {
     injectStylesheet();
   },
   'greenhouse.io': function () {
-    if (isGreenhouseJobListing()) {
+    if (isJobPosting("greenhouse")) {
       createOverlay("greenhouse");
     }
   },
   'wellfound.com': function () {
-    if (isWellfoundJobListing()) {
+    if (isJobPosting("wellfound")) {
       createOverlay("wellfound");
     }
   },
   'pythoncodingjobs.com': function () {
-    if (isPythonCodingJobsJobListing()) {
+    if (isJobPosting("pythoncodingjobs")) {
       createOverlay("pythoncodingjobs");
+    }
+  },
+  'applytojob.com': function () {
+    if (isJobPosting("applytojob")) {
+      createOverlay("applytojob");
     }
   }
 };
@@ -1044,32 +1177,30 @@ function searchElement(element) {
   return matches;
 }
 
-function isPythonCodingJobsJobListing() {
-  const element = document.getElementsByClassName("h2 mb-4");
-
-  if (element !== null) {
-    if(element[0].textContent == "Job Detail"){
-    return currentURL.includes("/jobs/");
+function isJobPosting(source){
+  if(source == "greenhouse" || source == "applytojob"){
+    const scriptTags = document.getElementsByTagName('script');
+    for (const scriptTag of scriptTags) {
+      if (scriptTag.type === 'application/ld+json') {
+        const data = JSON.parse(scriptTag.textContent);
+        if (data['@type'] === 'JobPosting') {
+          return true;
+        }
+      }
     }
   }
-  return false;
-}
-
-function isWellfoundJobListing() {
-  const element = document.getElementById("__NEXT_DATA__");
-  if (element !== null) {
-    return currentURL.includes("/jobs/");
+  else if(source == "wellfound"){
+    const element = document.getElementById("__NEXT_DATA__");
+    if (element !== null) {
+      return currentURL.includes("/jobs/");
+    }
   }
-  return false;
-}
+  else if(source == "pythoncodingjobs"){
+    const element = document.getElementsByClassName("h2 mb-4");
 
-function isGreenhouseJobListing() {
-  const scriptTags = document.getElementsByTagName('script');
-  for (const scriptTag of scriptTags) {
-    if (scriptTag.type === 'application/ld+json') {
-      const data = JSON.parse(scriptTag.textContent);
-      if (data['@type'] === 'JobPosting') {
-        return true;
+    if (element !== null) {
+      if(element[0].textContent == "Job Detail"){
+      return currentURL.includes("/jobs/");
       }
     }
   }
@@ -1158,8 +1289,6 @@ function extractPythonCodingJobsJobInfo() {
 
 function extractWellfoundJobInfo() {
 
-
-
   const json_data = document.getElementById("__NEXT_DATA__").textContent;
 
   jsonObj = JSON.parse(json_data);
@@ -1211,6 +1340,33 @@ function extractWellfoundJobInfo() {
   return jobInfo;
 
 }
+
+function extractApplyToJobJobInfo() {
+  const jobInfo = {};
+  const scripts = Array.from(document.getElementsByTagName('script'));
+
+  const jsonLdScript = scripts.find(
+    (script) => script.getAttribute('type') === 'application/ld+json' && script.innerHTML.includes('title')
+  );
+
+  if (jsonLdScript) {
+    const jobData = JSON.parse(jsonLdScript.innerHTML);
+    jobInfo.title = jobData.title;
+    jobInfo.company = jobData.hiringOrganization.name;
+    jobInfo.description = jobData.description;
+    jobInfo.datePosted = jobData.datePosted;
+    jobInfo.validThrough = jobData.validThrough;
+    jobInfo.employmentType = jobData.employmentType;
+    jobInfo.jobLocation = jobData.jobLocation.address.addressLocality + ", " + jobData.jobLocation.address.addressRegion + " " + jobData.jobLocation.address.postalCode;
+    jobInfo.experienceRequirements = jobData.experienceRequirements;
+    jobInfo.website = jobData.hiringOrganization.sameAs;
+    jobInfo.salaryRange = `${jobData.baseSalary.value.minValue} - ${jobData.baseSalary.value.maxValue}`;
+  }
+
+  return jobInfo;
+}
+
+
 
 function extractGreenhouseJobInfo() {
   const jobInfo = {};
@@ -1292,15 +1448,14 @@ async function sendJobInfoToBackend(jobInfo) {
             })
               .then(response => {
                 if (!response.ok) {
-                  alert('Network response was not ok 5', JSON.stringify(response));
-                  throw new Error('Network response was not ok 6', JSON.stringify(response));
+                  alert('Network response was not ok 5' + JSON.stringify(response) + JSON.stringify(response.status));
+                  throw new Error('Network response was not ok 6', JSON.stringify(response) + JSON.stringify(response.status));
                 }
                 return response.json();
               }).catch(error => {
                 jobInfo.description = "removed jd";
                 alert('There was a problem with the fetch operation it may be a cors issue -- :' + error + JSON.stringify(jobInfo));
                 console.error('There was a problem with the fetch operation it may be a cors issue -- :'+ error + JSON.stringify(jobInfo));
-                reject(new Error(JSON.stringify(error)));
               }).then(data => {
 
                 //console.log(data);
@@ -1309,7 +1464,6 @@ async function sendJobInfoToBackend(jobInfo) {
                 jobInfo.description = "removed jd";
                 alert('There was a problem with the data operation -- :' + JSON.stringify(error) + JSON.stringify(jobInfo));
                 console.error('There was a problem with the data operation -- :'+ JSON.stringify(error) + JSON.stringify(jobInfo));
-                reject(new Error(JSON.stringify(error)));
 
               });
           } else {
@@ -1405,6 +1559,8 @@ async function createOverlay(jobsite) {
     jobInfo = extractGreenhouseJobInfo();
   }else if(jobsite === "pythoncodingjobs"){
     jobInfo = extractPythonCodingJobsJobInfo();
+  }else if(jobsite === "applytojob"){
+    jobInfo = extractApplyToJobJobInfo();
   }
   const emails = searchElement(document.body);
   const form = document.createElement("form");
@@ -1572,7 +1728,6 @@ async function createOverlay(jobsite) {
     } else if (application.stage_name === 'Passed') {
       applicationInfo.style.backgroundColor = colors[3]
     }
-
 
     form.appendChild(applicationInfo);
   }

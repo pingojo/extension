@@ -1,4 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
+
+  document.getElementById('view-storage-btn').addEventListener('click', function () {
+    chrome.tabs.create({ url: 'storage.html' });
+  });
+
   const forms = document.querySelectorAll("[data-form-key]");
   const displayElements = document.querySelectorAll("[data-display-key]");
 
