@@ -440,7 +440,8 @@ function createDetailButton(label, spinner, checkmark) {
         button.style.backgroundColor = colors[3]
       }
         button.style.border = '1px solid #000';
-
+      var companySlug = "";
+      var companyName = "";
         chrome.storage.local.get('applications', function (result) {
           const applications = result.applications;
           const companyName = document.querySelector('#company_input_field').value;
@@ -450,6 +451,8 @@ function createDetailButton(label, spinner, checkmark) {
             if (applications[i].company_name === companyName) {        
               applications[i].stage_name = label;
               isMatchFound = true;
+              companySlug = applications[i].company_slug;
+              companyName = companyName
             }
           }
         
@@ -465,16 +468,23 @@ function createDetailButton(label, spinner, checkmark) {
           }
         });
         
-        companyInput.value = application.company_name;
+        
         const buttonContainer = toolbar.querySelector('.button_container');
-        const linkToCrm = createLinkToCrm(companyInput.value);
+        const linkToCrm = createLinkToCrm(companyName);
         buttonContainer.appendChild(linkToCrm);
-      
-        const linkToPingojo = document.createElement('a');
-      
-        linkToPingojo.setAttribute('href', 'https://pingojo.com/company/' + application.company_slug);
-        linkToPingojo.textContent = "View " + companyInput.value + " on Pingojo";
-        buttonContainer.appendChild(linkToPingojo);
+        if(companySlug === "") {
+          const linkToPingojo = document.createElement('a');
+        
+          linkToPingojo.setAttribute('href', 'https://pingojo.com/company/' + companySlug);
+          linkToPingojo.textContent = "View " + companyName + " on Pingojo";
+          buttonContainer.appendChild(linkToPingojo);
+        }else{
+          const linkToPingojo = document.createElement('a');
+        
+          linkToPingojo.setAttribute('href', 'https://pingojo.com/search/?search=' + companyName);
+          linkToPingojo.textContent = "Search " + companyName + " on Pingojo";
+          buttonContainer.appendChild(linkToPingojo);
+        }
 
       })
       .catch((error) => {
@@ -917,6 +927,8 @@ function setDefaultInputValues(toolbar, subjectElement) {
   const companyInput = toolbar.querySelector('#company_input_field');
   const subject = subjectElement.textContent;
 
+
+
   let companyName = "";
   for (const template of subjectTemplates) {
     const match = subject.match(template);
@@ -945,6 +957,31 @@ function setDefaultInputValues(toolbar, subjectElement) {
   const buttonContainer = toolbar.querySelector('.button_container');
   const linkToCrm = createLinkToCrm(companyName);
   buttonContainer.appendChild(linkToCrm);
+
+  const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
+
+  
+  if(emailContainer) {
+
+    const emailMetaInfo = emailContainer.querySelector('.gE.iv.gt');
+    const fromEmailElement = emailMetaInfo.querySelector('.go');
+    const fromAddress = fromEmailElement ? fromEmailElement.textContent : '';
+
+    if(fromAddress) {
+      //get domain from fromAddress
+      //remove < and > from fromAddress
+
+      //const domainName = fromAddress.split('@')[1];
+      const domainName = fromAddress.replace(/<|>/g, '').split('@')[1];
+
+      
+
+      const linkToPingojo = document.createElement('a');
+      linkToPingojo.setAttribute('href', 'https://pingojo.com/search/?search=' + domainName);
+      linkToPingojo.textContent = "Search " + domainName + " on Pingojo";
+      buttonContainer.appendChild(linkToPingojo);
+    }
+  }
 }
 
 function createLinkToCrm(companyName) {
@@ -1360,7 +1397,10 @@ function extractApplyToJobJobInfo() {
     jobInfo.jobLocation = jobData.jobLocation.address.addressLocality + ", " + jobData.jobLocation.address.addressRegion + " " + jobData.jobLocation.address.postalCode;
     jobInfo.experienceRequirements = jobData.experienceRequirements;
     jobInfo.website = jobData.hiringOrganization.sameAs;
-    jobInfo.salaryRange = `${jobData.baseSalary.value.minValue} - ${jobData.baseSalary.value.maxValue}`;
+    if (jobData.baseSalary){
+      jobInfo.salaryRange = `${jobData.baseSalary.value.minValue} - ${jobData.baseSalary.value.maxValue}`;
+
+    }
   }
 
   return jobInfo;
