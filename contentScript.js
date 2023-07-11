@@ -155,6 +155,7 @@ const subjectTemplates = [
   /Thank you for your application - (.*)/,
   /Thank you for applying to (.*) │/,
   /Thank you for applying to (.*)/,
+  /Thanks for applying to (.*)!/,
   /Thank you for your application to (.*?)(?:(?= for)|$)(?: for (.*))?/,
   /Regarding your application to (.*)/,
   /Your application to (.*)/,
@@ -255,7 +256,7 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
                     applications.push(payload);
 
                     chrome.storage.local.set({ applications }, () => {
-                      //console.log("Applications stored:", applications);
+                      console.log("Applications stored 259:", applications);
                     });
                   });
                 })
@@ -288,14 +289,25 @@ function sendDetailInfoToDRF(stage) {
     const inputField2 = document.querySelector('#company_input_field');
     let companyName = '';
     if (inputField2) {
-      companyName = inputField2.value;
-    }
+      if(inputField2.value){
+        companyName = inputField2.value;
+      }else {
+          alert('Company name is required');
+          reject(new Error('Company name is required'));
+        }
+    } 
+    
 
     const inputFieldRole = document.querySelector('#role_input_field');
     let roleName = '';
     if (inputFieldRole) {
+      if(inputFieldRole.value){
       roleName = inputFieldRole.value;
-    }
+      }else {
+        alert('Role is required');
+        reject(new Error('Role is required'));
+      }
+    } 
 
     if (emailMetaInfo) {
       const fromEmailElement = emailMetaInfo.querySelector('.go');
@@ -330,6 +342,17 @@ function sendDetailInfoToDRF(stage) {
 
 
 async function autoSubmitAppliedButton() {
+
+  const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
+
+  if(emailContainer) {
+
+    const emailMetaInfo = emailContainer.querySelector('.gE.iv.gt');
+    const fromEmailElement = emailMetaInfo.querySelector('.go');
+    const fromAddress = fromEmailElement ? fromEmailElement.textContent : '';
+
+    if(fromAddress.indexOf('wellfound') !== -1) {
+
   const elements = Array.from(document.querySelectorAll("*"));
   let found = false;
   for (let index = 0; index < elements.length; index++) {
@@ -346,7 +369,7 @@ async function autoSubmitAppliedButton() {
         if (inputField2) {
           companyName = inputField2.value;
         }
-
+        
         try {
           const companyNames = await getCompanyNames();
           for (let i = 0; i < companyNames.length; i++) {
@@ -369,6 +392,10 @@ async function autoSubmitAppliedButton() {
       if (found) break;
     }
   }
+
+}
+  }
+  
 }
 
 
@@ -444,7 +471,7 @@ function createDetailButton(label, spinner, checkmark) {
       var companyName = "";
         chrome.storage.local.get('applications', function (result) {
           const applications = result.applications;
-          const companyName = document.querySelector('#company_input_field').value;
+          companyName = document.querySelector('#company_input_field').value;
           let isMatchFound = false;
         
           for (let i = 0; i < applications.length; i++) {
@@ -452,13 +479,18 @@ function createDetailButton(label, spinner, checkmark) {
               applications[i].stage_name = label;
               isMatchFound = true;
               companySlug = applications[i].company_slug;
-              companyName = companyName
+              //if role is filled in set the role too
+              const roleInput = document.querySelector('#role_input_field');
+              if (roleInput) {
+                applications[i].role_name = roleInput.value;
+              }
+              
             }
           }
         
           if (isMatchFound) {
             chrome.storage.local.set({ 'applications': applications }, function () {
-              console.log('Updated applications have been saved.');
+              console.log('Applications Stored 488');
         
               // Reload the applications with the new value
               chrome.storage.local.get('applications', function (result) {
@@ -472,18 +504,22 @@ function createDetailButton(label, spinner, checkmark) {
         const buttonContainer = toolbar.querySelector('.button_container');
         const linkToCrm = createLinkToCrm(companyName);
         buttonContainer.appendChild(linkToCrm);
-        if(companySlug === "") {
+
+        if(companySlug !== "") {
           const linkToPingojo = document.createElement('a');
         
           linkToPingojo.setAttribute('href', 'https://pingojo.com/company/' + companySlug);
           linkToPingojo.textContent = "View " + companyName + " on Pingojo";
           buttonContainer.appendChild(linkToPingojo);
         }else{
-          const linkToPingojo = document.createElement('a');
+          if(companyName){
+            const linkToPingojo = document.createElement('a');
         
-          linkToPingojo.setAttribute('href', 'https://pingojo.com/search/?search=' + companyName);
-          linkToPingojo.textContent = "Search " + companyName + " on Pingojo";
-          buttonContainer.appendChild(linkToPingojo);
+            linkToPingojo.setAttribute('href', 'https://pingojo.com/search/?search=' + companyName);
+            linkToPingojo.textContent = "Search " + companyName + " on Pingojo";
+            buttonContainer.appendChild(linkToPingojo);
+          }
+
         }
 
       })
@@ -782,7 +818,7 @@ async function fetchCountsAndApplicationsFromServer() {
                   }));
 
                   chrome.storage.local.set({ applications }, () => {
-                    console.log('Applications stored:', applications);
+                    console.log('Applications stored 813:', applications);
                   });
 
                   resolve(counts);
@@ -828,6 +864,7 @@ function debounce(func, wait) {
 const debouncedAddButtonAndInput = debounce(addButtonAndInput, 500);
 
 function addButtonAndInput() {
+  console.log('addButtonAndInput');
   const addToolbar = async () => {
     const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
     const subjectElement = document.querySelector('h2[data-thread-perm-id]');
@@ -845,8 +882,9 @@ function addButtonAndInput() {
       const gmailId = gmailIdMatch ? gmailIdMatch[1] : null;
       const applications = await getApplications();
       const application = applications.find(app => app.gmail_id === gmailId);
-
+      
       if (application) {
+        console.log('Found application', application);
         setInputValues(toolbar, application);
         setButtonState(toolbar, application);
       } else {
@@ -958,6 +996,12 @@ function setDefaultInputValues(toolbar, subjectElement) {
   const linkToCrm = createLinkToCrm(companyName);
   buttonContainer.appendChild(linkToCrm);
 
+  if(companyName){
+    const linkToPingojo = document.createElement('a');
+    linkToPingojo.setAttribute('href', 'https://pingojo.com/search/?search=' + companyName);
+    linkToPingojo.textContent = "Search " + companyName + " on Pingojo";
+    buttonContainer.appendChild(linkToPingojo);
+  }
   const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
 
   
@@ -968,27 +1012,49 @@ function setDefaultInputValues(toolbar, subjectElement) {
     const fromAddress = fromEmailElement ? fromEmailElement.textContent : '';
 
     if(fromAddress) {
-      //get domain from fromAddress
-      //remove < and > from fromAddress
-
-      //const domainName = fromAddress.split('@')[1];
-      const domainName = fromAddress.replace(/<|>/g, '').split('@')[1];
-
-      
-
+      var domainName = "";
+      const addressParts = fromAddress.replace(/<|>/g, '').split('@');
+      if (addressParts.length > 1) {
+          const domainParts = addressParts[1].split('.');
+          if (domainParts.length > 1) {
+              domainName = domainParts.slice(-2).join('.');
+              //console.log(domainName);  // Or use this value however you need
+          } else {
+              console.error('Invalid domain');
+          }
+      } else {
+          console.error('Invalid email address');
+      }
       const linkToPingojo = document.createElement('a');
       linkToPingojo.setAttribute('href', 'https://pingojo.com/search/?search=' + domainName);
       linkToPingojo.textContent = "Search " + domainName + " on Pingojo";
       buttonContainer.appendChild(linkToPingojo);
+
+      //append a search for the domain name in gmail
+      const linkToGmail = document.createElement('a');
+      linkToGmail.setAttribute('href', 'https://mail.google.com/mail/u/0/#search/' + domainName);
+      linkToGmail.textContent = "Search " + domainName + " in Gmail";
+      buttonContainer.appendChild(linkToGmail);
+
     }
+    //if emailMetaInfo contains greenhouse, then add a link to greenhouse
+    if(emailMetaInfo.textContent.includes('greenhouse')) {
+      const linkToGreenhouse = document.createElement('a');
+      
+
+      linkToGreenhouse.setAttribute('href', 'https://www.google.com/search?q=site:greenhouse.io+' + companyName);
+      linkToGreenhouse.textContent = "Search " + companyName + " on Greenhouse";
+      buttonContainer.appendChild(linkToGreenhouse);
+    }
+
   }
 }
 
 function createLinkToCrm(companyName) {
   const linkToCrm = document.createElement('a');
   if (companyName) {
-    linkToCrm.setAttribute('href', 'https://mail.google.com/mail/u/0/#search/' + companyName);
-    linkToCrm.textContent = "Search email for" + companyName;
+    linkToCrm.setAttribute('href', 'https://mail.google.com/mail/u/0/#search/"' + companyName + '"');
+    linkToCrm.textContent = "Search Gmail for " + companyName;
   }
   return linkToCrm;
 }
@@ -1008,6 +1074,8 @@ function findLinkElement() {
 
   return null;
 }
+
+
 function createToolbar() {
   const toolbar = document.createElement('div');
   toolbar.setAttribute('id', 'company_toolbar');
@@ -1083,7 +1151,7 @@ function createToolbar() {
   chrome.storage.local.get('applications', function(data) {
     let applications = data.applications;
 
-    let companyRolePairs = [...new Map(applications.map(app => [app.company_name, app.job_role])).entries()];
+    let companyRolePairs = applications.map(app => [app.company_name, app.job_role, app.stage_name]);
 
     inputField2.addEventListener('keyup', function(e) {
       const existingAutocomplete = document.getElementById('autocomplete');
@@ -1102,10 +1170,10 @@ function createToolbar() {
       
 
       const input = e.target.value.toLowerCase();
-      const matches = companyRolePairs.filter(([company, role]) => company.toLowerCase().startsWith(input));
-      matches.forEach(([company, role]) => {
+      const matches = companyRolePairs.filter(([company, role, stage_name]) => company.toLowerCase().includes(input));
+      matches.forEach(([company, role, stage_name]) => {
         let option = document.createElement('div');
-        option.textContent = `${company} (${role})`;
+        option.textContent = `${company} (${role}) - ${stage_name}`;
         option.style.padding = '5px';
         option.addEventListener('mouseover', function() {
           option.style.backgroundColor = '#f0f0f0';
@@ -1120,6 +1188,13 @@ function createToolbar() {
         });
         autocompleteList.appendChild(option);
       });
+
+      document.addEventListener('click', function (event) {
+        // Check if the click is outside of the autocompleteList
+        if (!autocompleteList.contains(event.target)) {
+            autocompleteList.remove();
+        }
+    });
     });
   });
 
@@ -1452,6 +1527,12 @@ function extractGreenhouseJobInfo() {
   const salaryRangeMatch = bodyContent.match(salaryRangeRegex);
   if (salaryRangeMatch) {
     jobInfo.salaryRange = `${salaryRangeMatch[1]} - ${salaryRangeMatch[2]}`;
+  }
+
+  // Extract website from logo-container
+  const logoElement = document.querySelector("#logo a");
+  if (logoElement) {
+    jobInfo.website = logoElement.href;
   }
 
   return jobInfo;
