@@ -2042,11 +2042,19 @@ function extractWellfoundJobInfoNew() {
 
   if (jsonLdScript) {
     const jobData = JSON.parse(jsonLdScript.innerHTML);
+    const formatDate = (value) => {
+      if (!value) {
+        return '';
+      }
+
+      const parsedDate = new Date(value);
+      return Number.isNaN(parsedDate.getTime()) ? '' : parsedDate.toISOString().slice(0, 10);
+    };
     jobInfo.title = jobData.title;
     jobInfo.company = jobData.hiringOrganization.name;
     jobInfo.description = jobData.description;
-    jobInfo.datePosted = new Date(jobData.datePosted).toISOString().slice(0, 10);
-    jobInfo.validThrough = new Date(jobData.validThrough).toISOString().slice(0, 10);
+    jobInfo.datePosted = formatDate(jobData.datePosted);
+    jobInfo.validThrough = formatDate(jobData.validThrough);
     jobInfo.employmentType = jobData.employmentType;
     try {
       jobInfo.location = jobData.jobLocation.map(location => location.address.addressLocality + ", " + location.address.addressRegion).join('; ');
