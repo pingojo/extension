@@ -1,98 +1,6 @@
 const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336']; // green, blue, orange, and red
 const excludedDomains = ["pingojo.com", "google.com", "127.0.0.1", "chatgpt.com"];
 
-
-// // CSS styles for the floating tab and sliding panel
-// const tabstyle = document.createElement('style');
-// tabstyle.textContent = `
-//   #pingojo-tab {
-//     position: fixed;
-//     top: 50%;
-//     right: 0;
-//     transform: translateY(-50%);
-//     width: 40px;
-//     height: 40px;
-//     background-color: #ffffff; 
-//     border-radius: 5px 0 0 5px;
-//     cursor: pointer;
-//     display: flex;
-//     justify-content: center;
-//     align-items: center;
-//     z-index: 1000;
-//     border: 1px solid #ccc;
-//   }
-
-//   #pingojo-tab img {
-//     width: 30px;
-//     height: 30px;
-//   }
-
-//   #pingojo-panel {
-//     position: fixed;
-//     top: 50%;
-//     right: -150px; /* Hidden initially */
-//     transform: translateY(-50%);
-//     width: 150px;
-//     background-color: #f9f9f9;
-//     box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-//     border-radius: 5px 0 0 5px;
-//     transition: right 0.3s ease;
-//     padding: 10px;
-//     z-index: 1000;
-//   }
-
-//   #pingojo-panel a {
-//     display: block;
-//     margin-bottom: 10px;
-//     text-decoration: none;
-//     color: #000;
-//     font-weight: bold;
-//   }
-
-//   #pingojo-panel .emoji {
-//     margin-right: 10px;
-//   }
-
-//   #pingojo-panel.active {
-//     right: 0; /* Slide out */
-//   }
-// `;
-// document.head.appendChild(tabstyle);
-
-// // Create the floating tab for Pingojo logo
-// const pingojoTab = document.createElement('div');
-// pingojoTab.id = 'pingojo-tab';
-// const pingojoLogo = chrome.runtime.getURL('pingojo-logo.svg'); // Replace with correct path to Pingojo logo SVG
-// pingojoTab.innerHTML = `<img src="${pingojoLogo}" alt="Pingojo">`;
-// document.body.appendChild(pingojoTab);
-
-// // Create the sliding panel
-// const pingojoPanel = document.createElement('div');
-// pingojoPanel.id = 'pingojo-panel';
-// pingojoPanel.innerHTML = `
-//   <a href="#" id="add-job"><span class="emoji">➕</span> Add Job</a>
-//   <a href="#" id="view-emails"><span class="emoji">📧</span> View Emails</a>
-// `;
-// document.body.appendChild(pingojoPanel);
-
-// // Event listeners for tab click to slide out the panel
-// pingojoTab.addEventListener('click', () => {
-//   pingojoPanel.classList.toggle('active');
-// });
-
-// // Event listeners for the buttons (you can add functionality here)
-// document.getElementById('add-job').addEventListener('click', () => {
-//   alert('Add Job clicked!');
-//   // Add your logic for adding a job
-// });
-
-// document.getElementById('view-emails').addEventListener('click', () => {
-//   alert('View Emails clicked!');
-//   // Add your logic for viewing emails
-// });
-
-
-
 const waitForViewMessageLink = setInterval(() => {
   const elementsWithViewMessage = Array.from(document.querySelectorAll('*')).filter(element => element.textContent === 'View message');
   if (elementsWithViewMessage.length > 0) {
@@ -100,6 +8,10 @@ const waitForViewMessageLink = setInterval(() => {
     elementsWithViewMessage[0].click();
   }
 }, 1000);
+
+function randomDelay() {
+  return Math.random() * 500 + 500;
+}
 
 async function highlightCompanyNames() {
   let companyNames = await getCompanyNames();
@@ -179,9 +91,8 @@ async function highlightCompanyNames() {
   function processNodes() {
     const node = nodesToHighlight.shift();
     if (node) {
-      // not sure if this is useful
       highlightMatches(node);
-      setTimeout(processNodes, 0);
+      setTimeout(processNodes, randomDelay());
     } else {
       if (!window.location.href.includes("wellfound.com/jobs/")) {
         createSidebar(Array.from(foundCompanies));
@@ -208,7 +119,6 @@ async function highlightCompanyNames() {
     sidebar.style.maxHeight = '90%';
     sidebar.style.cursor = 'move';
 
-    // Create the close button
     const closeButton = document.createElement('span');
     closeButton.innerText = '×';
     closeButton.style.position = 'absolute';
@@ -254,7 +164,6 @@ async function highlightCompanyNames() {
 
     document.body.appendChild(sidebar);
 
-    // Make the sidebar draggable
     let isDragging = false;
     let startX, startY, initialX, initialY;
 
@@ -273,7 +182,7 @@ async function highlightCompanyNames() {
         const dy = e.clientY - startY;
         sidebar.style.left = (initialX + dx) + 'px';
         sidebar.style.top = (initialY + dy) + 'px';
-        sidebar.style.right = 'auto'; // Disable right to enable free dragging
+        sidebar.style.right = 'auto';
       }
     });
 
@@ -282,117 +191,27 @@ async function highlightCompanyNames() {
       document.body.style.userSelect = 'auto';
     });
   }
-
 }
 
-// function checkForBounceEmail() {
-//   const bounceText = "the email account that you tried to reach does not exist";
-//   const deliveryFailureText = "Your message wasn't delivered to";
+const observer = new MutationObserver((mutationsList) => {
+  mutationsList.forEach((mutation) => {
+    if (mutation.type === 'childList' && mutation.addedNodes.length) {
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          if (node.className.includes('hidden') || node.style.display === 'none') {
+            node.style.display = 'block';
+          }
+        }
+      });
+    }
+  });
+});
 
-//   const observer = new MutationObserver((mutations) => {
-//     mutations.forEach((mutation) => {
-//       const elements = Array.from(document.querySelectorAll("*"));
-//       let found = false;
-
-//       for (let index = 0; index < elements.length && !found; index++) {
-//         const element = elements[index];
-//         const text = element.textContent.toLowerCase();
-
-//         // Look for the specific bounce message or delivery failure message
-//         if (text.indexOf(bounceText) !== -1 || text.indexOf(deliveryFailureText.toLowerCase()) !== -1) {
-//           found = true;
-
-//           // Extract the email address after "Your message wasn't delivered to"
-//           let bouncedEmail = null;
-//           if (text.indexOf(deliveryFailureText.toLowerCase()) !== -1) {
-//             const emailStartIndex = text.indexOf(deliveryFailureText.toLowerCase()) + deliveryFailureText.length;
-//             const emailMatch = text.slice(emailStartIndex).match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
-//             bouncedEmail = emailMatch ? emailMatch[0] : null;
-//           }
-
-//           if (bouncedEmail) {
-//             // Create and display the "Report Bounce" button with the email address
-//             const reportBounceDiv = document.createElement('div');
-//             reportBounceDiv.style.position = 'fixed';
-//             reportBounceDiv.style.right = '10px';
-//             reportBounceDiv.style.top = '50%';
-//             reportBounceDiv.style.transform = 'translateY(-50%)';
-//             reportBounceDiv.style.backgroundColor = '#ff9800';
-//             reportBounceDiv.style.color = '#fff';
-//             reportBounceDiv.style.padding = '10px';
-//             reportBounceDiv.style.borderRadius = '5px';
-//             reportBounceDiv.style.cursor = 'pointer';
-//             reportBounceDiv.style.zIndex = '10000';
-
-//             // Set the button text with the email in a smaller font
-//             reportBounceDiv.innerHTML = `Report Bounce<br><small>${bouncedEmail}</small>`;
-
-//             document.body.appendChild(reportBounceDiv);
-
-//             reportBounceDiv.addEventListener('click', () => {
-//               const bounceReason = "The email account that you tried to reach does not exist.";
-//               reportBouncedEmailToPingojo(bouncedEmail, bounceReason);
-//             });
-
-//           } else {
-//             alert('Failed to extract email address.');
-//           }
-
-//           observer.disconnect(); // Stop observing after the bounce text is found
-//         }
-//       }
-//     });
-//   });
-
-//   observer.observe(document.body, {
-//     childList: true,
-//     subtree: true,
-//   });
-// }
-
-
-
-
-// function reportBouncedEmailToPingojo(email, reason) {
-//   const apiUrl = "https://pingojo.com/api/report_bounce/"; // Replace with the correct Pingojo API endpoint
-
-//   fetch(apiUrl, {
-//     method: "POST",
-//     headers: {
-//       "Content-Type": "application/json"
-//     },
-//     body: JSON.stringify({ email: email, reason: reason })
-//   })
-//   .then(response => response.json())
-//   .then(data => {
-//     if (data.success) {
-//       alert('Bounced email reported successfully.');
-//     } else {
-//       alert('Failed to report the bounced email.');
-//     }
-//   })
-//   .catch(error => {
-//     console.error('Error reporting bounced email:', error);
-//     alert('An error occurred while reporting the bounced email.');
-//   });
-// }
-
-// checkForBounceEmail();
-
-const style = document.createElement('style');
-style.textContent = `
-  .highlighted-company {
-    background-color: yellow;
-  }
-`;
-document.head.appendChild(style);
-
+observer.observe(document.body, { childList: true, subtree: true });
 
 if (!excludedDomains.some(domain => window.location.href.includes(domain))) {
-  highlightCompanyNames();
-  //observer.observe(document.body, observerConfig); // Add this line
+  setTimeout(highlightCompanyNames, randomDelay());
 }
-
 
 replaceLinkWithGmailLink();
 
@@ -403,18 +222,17 @@ async function getCompanyNames() {
 }
 
 
-
-const observer = new MutationObserver(mutationsList => {
-  for (const mutation of mutationsList) {
-    if (mutation.type === 'childList' && mutation.addedNodes.length) {
-      const addedNode = mutation.addedNodes[0];
-      if (addedNode.tagName === 'DIV' && addedNode.getAttribute('role') === 'listitem') {
-        debouncedAddButtonAndInput();
-      }
-    }
-  }
-  handleDomChanges();
-});
+// const observer = new MutationObserver(mutationsList => {
+//   for (const mutation of mutationsList) {
+//     if (mutation.type === 'childList' && mutation.addedNodes.length) {
+//       const addedNode = mutation.addedNodes[0];
+//       if (addedNode.tagName === 'DIV' && addedNode.getAttribute('role') === 'listitem') {
+//         debouncedAddButtonAndInput();
+//       }
+//     }
+//   }
+//   handleDomChanges();
+// });
 
 const observerConfig = {
   childList: true,
@@ -704,20 +522,7 @@ async function autoSubmitAppliedButton() {
                     const hexColorPassed = rgbToHex(bgColorPassed);
 
                     if (hexColorApplied !== '#8bc34a' && hexColorScheduled !== '#03a9f4' && hexColorNext !== '#ff9800' && hexColorPassed !== '#f44336') {
-                      if (!window.location.href.includes('gmail.pinto-server')) {
-                        // save time by not clicking on the new page because it doesn't have a unique identifier
-                        if (email_address != document.querySelector("#company_email_input_field").value) {
-                          appliedButton.click();
-                        }
-                      } else {
-                        // open the sent window and close the current window
-                        // https://mail.google.com/mail/u/0/#sent/
-                        // if window is not currently on sent page, open it
-                        if (!window.location.href.includes('#sent')) {
-                          window.open('https://mail.google.com/mail/u/0/#sent/', '_blank');
-                        }
-                        window.close();
-                      }
+                      appliedButton.click();
                     }
 
                     if (appliedButton) {
@@ -728,12 +533,6 @@ async function autoSubmitAppliedButton() {
 
                           if (mutation.type === 'attributes' && hexColor === '#8bc34a') {
                             setTimeout(function () {
-                              // open the sent window and close the current window
-                              // https://mail.google.com/mail/u/0/#sent/
-                              // if window is not currently on sent page, open it
-                              if (!window.location.href.includes('#sent')) {
-                                window.open('https://mail.google.com/mail/u/0/#sent/', '_blank');
-                              }
                               window.close();
                             }, 2000);
                             observer.disconnect();
@@ -892,7 +691,7 @@ function createDetailButton(label, spinner, checkmark) {
         } else {
           if (companyName) {
             const linkToPingojo = document.createElement('a');
-            linkToPingojo.setAttribute('href', 'https://pingojo.com/?search=' + companyName + '&search_type=company');
+            linkToPingojo.setAttribute('href', 'https://pingojo.com/?search=' + companyName + "&search_type=company");
             linkToPingojo.textContent = "Search for " + companyName + " on Pingojo";
             buttonContainer.appendChild(linkToPingojo);
           }
@@ -1411,7 +1210,7 @@ function setDefaultInputValues(toolbar, subjectElement) {
 
   if (companyName) {
     const linkToPingojo = document.createElement('a');
-    linkToPingojo.setAttribute('href', 'https://pingojo.com/?search=' + companyName + '&search_type=company');
+    linkToPingojo.setAttribute('href', 'https://pingojo.com/?search=' + companyName + "&search_type=company");
     const pingojoIconUrl = chrome.runtime.getURL('search-pingojo.svg');
     linkToPingojo.innerHTML = '<img style="margin-top:5px;" src="' + pingojoIconUrl + '" alt="Search ' + companyName + ' on Pingojo" title="Search ' + companyName + ' on Pingojo" height="30px;">';
     buttonContainer.appendChild(linkToPingojo);
@@ -1668,11 +1467,6 @@ const siteFunctions = {
     if (isJobPosting("linkedin")) {
       createOverlay("linkedin");
     }
-  },
-  'builtin.com': function () {
-    if (isJobPosting("builtin")) {
-      createOverlay("builtin");
-    }
   }
 };
 
@@ -1728,28 +1522,7 @@ function searchElement(element) {
 }
 
 function isJobPosting(source) {
-  console.log("checking if job posting is : " + source);
-  if (source === "builtin") {
-    const scriptTags = document.getElementsByTagName('script');
-    for (const scriptTag of scriptTags) {
-      if (scriptTag.type === 'application/ld+json') {
-        const data = JSON.parse(scriptTag.textContent);
-
-        // Check if the script has @graph and process it accordingly
-        if (data['@graph']) {
-          // Iterate through @graph array to check for a JobPosting type
-          for (const item of data['@graph']) {
-            if (item['@type'] === 'JobPosting') {
-              return true;
-            }
-          }
-        } else if (data['@type'] === 'JobPosting') {
-          // If there's no @graph and it's a direct JobPosting
-          return true;
-        }
-      }
-    }
-  }
+  //console.log("checking if job posting is : " + source);
   if (source == "greenhouse") {
     const scriptTags = document.getElementsByTagName('script');
     for (const scriptTag of scriptTags) {
@@ -2071,56 +1844,6 @@ function extractWellfoundJobInfoNew() {
   return jobInfo;
 }
 
-
-function extractbuiltinobInfo() {
-  const jobInfo = {};
-  const scripts = Array.from(document.getElementsByTagName('script'));
-
-  const jsonLdScript = scripts.find(
-    (script) => script.getAttribute('type') === 'application/ld+json' && script.innerHTML.includes('@graph')
-  );
-
-  if (jsonLdScript) {
-    const jobData = JSON.parse(jsonLdScript.innerHTML)['@graph'].find(item => item['@type'] === 'JobPosting');
-
-    if (jobData) {
-      jobInfo.title = jobData.title;
-      jobInfo.company = jobData.hiringOrganization.name;
-      jobInfo.description = jobData.description;
-      jobInfo.datePosted = new Date(jobData.datePosted).toISOString().slice(0, 10);
-      jobInfo.validThrough = new Date(jobData.validThrough).toISOString().slice(0, 10);
-      jobInfo.employmentType = jobData.employmentType;
-      jobInfo.experienceRequirements = `${jobData.experienceRequirements.monthsOfExperience / 12} years`;
-
-      // Handle job location
-      try {
-        jobInfo.location = jobData.jobLocation.map(location => location.address.addressLocality + ", " + location.address.addressRegion).join('; ');
-      } catch (error) {
-        try {
-          jobInfo.location = jobData.jobLocation.address.addressLocality + ", " + jobData.jobLocation.address.addressRegion;
-        } catch (error) {
-          jobInfo.location = "Remote";
-        }
-      }
-
-      //jobInfo.website = jobData.hiringOrganization.sameAs;
-      jobInfo.industry = jobData.industry;
-      jobInfo.directApply = jobData.directApply;
-
-      if (jobData.baseSalary) {
-        const salary = jobData.baseSalary.value;
-        jobInfo.salaryRange = `$${salary.minValue || 0} - $${salary.maxValue || 0}`;
-      }
-
-      //jobInfo.perks = jobData.jobBenefits ? jobData.jobBenefits.join(', ') : "None";
-      jobInfo.logo = jobData.hiringOrganization.logo.url;
-    }
-  }
-
-  return jobInfo;
-}
-
-
 function extractApplyToJobJobInfo() {
   const jobInfo = {};
   const scripts = Array.from(document.getElementsByTagName('script'));
@@ -2314,14 +2037,15 @@ function extractGreenhouseJobInfo() {
 }
 
 
+
+
+
+
+
+
 async function sendJobInfoToBackend(jobInfo) {
   if (!jobInfo.link) {
     jobInfo.link = window.location.href.split("?")[0];
-  }
-
-  // Check if the current page content indicates a 410 status
-  if (document.title.includes("410") || document.body.textContent.includes("is no longer available")) {
-    jobInfo.link_is_410 = true;
   }
 
   chrome.storage.sync.get("base_url", ({ base_url }) => {
@@ -2473,8 +2197,6 @@ async function createOverlay(jobsite) {
     jobInfo = extractLinkedInJobJobInfo();
   } else if (jobsite === "ycombinator") {
     jobInfo = extractYCombinatorJobInfo();
-  } else if (jobsite === "builtin") {
-    jobInfo = extractbuiltinobInfo();
   }
   const emails = searchElement(document.body);
   const form = document.createElement("form");
@@ -2900,84 +2622,3 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ text: selectedText });
   }
 });
-
-// for overlay job add
-
-let popupjobData = {};
-
-window.addEventListener('message', (event) => {
-  if (event.data.action === 'start-job-capture') {
-    captureJobLink();
-  }
-});
-
-function captureJobLink() {
-  const jobLink = window.location.href;
-  popupjobData.link = jobLink;
-
-  promptUser("Select the job role (don't include organization name)", () => {
-    document.addEventListener('click', selectJobRole);
-  });
-}
-
-function selectJobRole(event) {
-  const jobRole = event.target.innerText;
-  popupjobData.jobRole = jobRole;
-  document.removeEventListener('click', selectJobRole);
-
-  promptUser("Select the organization name", () => {
-    document.addEventListener('click', selectOrganizationName);
-  });
-}
-
-function selectOrganizationName(event) {
-  const organizationName = event.target.innerText;
-  popupjobData.organization = organizationName;
-  document.removeEventListener('click', selectOrganizationName);
-
-  promptUser("Select the location", () => {
-    document.addEventListener('click', selectLocation);
-  });
-}
-
-function selectLocation(event) {
-  const location = event.target.innerText;
-  popupjobData.location = location;
-  document.removeEventListener('click', selectLocation);
-
-  promptUser("Select the salary range", () => {
-    document.addEventListener('click', selectSalaryRange);
-  });
-}
-
-function selectSalaryRange(event) {
-  const salaryRange = event.target.innerText;
-  popupjobData.salary = salaryRange;
-  document.removeEventListener('click', selectSalaryRange);
-
-  promptUser("Select the job description", () => {
-    document.addEventListener('click', selectJobDescription);
-  });
-}
-
-function selectJobDescription(event) {
-  const jobDescription = event.target.innerText;
-  popupjobData.description = jobDescription;
-  document.removeEventListener('click', selectJobDescription);
-
-  promptUser("Enter the company email in the popup form or select it on the page.", () => {
-    chrome.runtime.sendMessage({ action: 'ask-email' });
-  });
-}
-
-function promptUser(message, callback) {
-  const overlay = document.createElement('div');
-  overlay.classList.add('overlay');
-  overlay.innerText = message;
-  document.body.appendChild(overlay);
-
-  setTimeout(() => {
-    document.body.removeChild(overlay);
-    if (callback) callback();
-  }, 3000);
-}

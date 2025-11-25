@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pingojo CRM Extension</title>
+  <title>Pingojo</title>
   <style>
     body {
       margin: 0;
@@ -11,8 +10,7 @@
       box-sizing: border-box;
       font-family: Arial, sans-serif;
       background-color: #f5f5f5;
-      max-width: 800px;
-      margin: auto;
+      width: 100%;
       padding: 20px;
     }
 
@@ -36,6 +34,7 @@
       padding: 5px;
       border: 1px solid #ddd;
       border-radius: 4px;
+      max-width: 200px;
     }
 
     button {
@@ -54,43 +53,84 @@
     p {
       margin-bottom: 20px;
     }
+
+    .container {
+      display: flex;
+      justify-content: flex-start; /* Align to the left */
+      align-items: flex-start; /* Align sections to the top */
+      gap: 20px; /* Add space between sections */
+    }
+
+    .section1, .section2 {
+      width: 300px;
+      padding: 20px;
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
   </style>
   <script src="popup.js" defer></script>
 </head>
 <body>
 
-  <h1>Set Base URL</h1>
-  <form data-form-key="base_url">
-    <input type="text" placeholder="Enter base URL" />
-    <button type="submit">Save</button>
-  </form>
-  <p>Current Base URL: <span data-display-key="base_url"></span></p>
+  <div class="container">
+    <div class="section1">
 
-  
 
-  <h1>Set Prompt Injection</h1>
-  <form data-form-key="prompt_text">
-    <input type="text" placeholder="Enter prompt injection" />
-    <button type="submit">Save</button>
-  </form>
-  <p>Current Prompt Injection: <span data-display-key="prompt_text"></span></p>
+      <button id="copy-and-open">Build Cover Letter with ChatGPT on Selected Text</button>
+      <button id="view-storage-btn">View LocalStorage Data</button>
+      <button id="clear-data-btn">Clear Application Data</button>
+      
+      <h1>Set Base URL</h1>
+      <form data-form-key="base_url">
+        <input type="text" placeholder="Enter base URL" />
+        <button type="submit">Save</button>
+      </form>
+      <p>Current Base URL: <span data-display-key="base_url"></span></p>
 
-  <h1>Full Name</h1>
-  <form data-form-key="full_name">
-    <input type="text" placeholder="Enter full name" />
-    <button type="submit">Save</button>
-  </form>
-  <p>Current Full Name: <span data-display-key="full_name"></span></p>
+      <h1>Set Prompt Injection</h1>
+      <form data-form-key="prompt_text">
+        <input type="text" placeholder="Enter prompt injection" />
+        <button type="submit">Save</button>
+      </form>
+      <p>Current Prompt Injection: <span data-display-key="prompt_text"></span></p>
 
-  <h1>Email Address</h1>
-  <form data-form-key="email_address">
-    <input type="text" placeholder="Enter email address" />
-    <button type="submit">Save</button>
-  </form>
-  <p>Current Email Address: <span data-display-key="email_address"></span></p>
+      <h1>Full Name</h1>
+      <form data-form-key="full_name">
+        <input type="text" placeholder="Enter full name" />
+        <button type="submit">Save</button>
+      </form>
+      <p>Current Full Name: <span data-display-key="full_name"></span></p>
 
-    <hr>
-    <button id="view-storage-btn">View LocalStorage Data</button>
-    <button id="clear-data-btn">Clear Application Data</button>
+      <h1>Email Address</h1>
+      <form data-form-key="email_address">
+        <input type="text" placeholder="Enter email address" />
+        <button type="submit">Save</button>
+      </form>
+      <p>Current Email Address: <span data-display-key="email_address"></span></p>
+
+      <hr>
+      <form data-form-key="application_count">
+        <input type="text" placeholder="Enter email address" />
+        Email count: <span data-display-key="application_count"></span></br>
+      </form>
+      <form data-form-key="last_update">
+        <input type="text" placeholder="Enter email address" />
+        Update time: <span data-display-key="last_update"></span>
+      </form>
+    </div>
+
+    <div class="section2">
+      <h1>Job adding tools</h1>
+      <button id="start-job">Add Current Page as Job</button>
+      <div id="status"></div>
+      <form data-form-key="job_listing">
+        <input type="url" id="job_url" placeholder="Enter Job URL"></br>
+        <input type="email" id="company_email" placeholder="Enter Company Email">
+        <button id="submit-email">Submit Job</button>
+      </form>
+    </div>
+  </div>
+
 </body>
 </html>
