@@ -1,6 +1,30 @@
 const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336']; // green, blue, orange, and red
 const excludedDomains = ["pingojo.com", "google.com", "127.0.0.1", "chatgpt.com"];
 
+let troubleshooterEnabled = true;
+
+function loadTroubleshooterPreference() {
+  chrome.storage.sync.get({ show_troubleshooter: true }, ({ show_troubleshooter }) => {
+    troubleshooterEnabled = show_troubleshooter !== false;
+    if (!troubleshooterEnabled) {
+      const existingBox = document.getElementById('pingojo-troubleshooting-box');
+      if (existingBox) existingBox.remove();
+    }
+  });
+}
+
+loadTroubleshooterPreference();
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'sync' && changes.show_troubleshooter) {
+    troubleshooterEnabled = changes.show_troubleshooter.newValue !== false;
+    if (!troubleshooterEnabled) {
+      const existingBox = document.getElementById('pingojo-troubleshooting-box');
+      if (existingBox) existingBox.remove();
+    }
+  }
+});
+
 
 // // CSS styles for the floating tab and sliding panel
 // const tabstyle = document.createElement('style');
@@ -129,6 +153,10 @@ async function highlightCompanyNames() {
   const foundCompanies = new Set();
 
   function highlightMatches(textNode) {
+    if (!textNode || textNode.parentElement?.closest('script, style, noscript, template')) {
+      return;
+    }
+
     let match;
     while ((match = regex.exec(textNode.data)) !== null) {
       const span = document.createElement('span');
@@ -1280,13 +1308,11 @@ function addButtonAndInput() {
             toolbar.querySelector('#company_input_field').value = result.recent_company;
             toolbar.querySelector('#role_input_field').value = result.recent_role;
 
-            let emailSpans = document.querySelectorAll("span[email]");
-            if (emailSpans.length > 0) {
-              let lastEmailSpan = emailSpans[emailSpans.length - 1];
-              let email = lastEmailSpan.getAttribute('email');
-              toolbar.querySelector('#company_email_input_field').value = email;
+            const detectedEmail = getActiveThreadRecipientEmail();
+            if (detectedEmail) {
+              toolbar.querySelector('#company_email_input_field').value = detectedEmail;
             } else {
-              alert('No email span found.');
+              alert('Unable to detect recipient email in this thread.');
             }
 
             autoSubmitAppliedButton();
@@ -1303,6 +1329,47 @@ function addButtonAndInput() {
     }
   };
   setTimeout(addToolbar, 100);
+}
+
+function getActiveThreadRecipientEmail() {
+  const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
+  if (!emailContainer) {
+    return '';
+  }
+
+  const header = emailContainer.querySelector('.gE.iv.gt');
+  if (!header) {
+    return '';
+  }
+
+  const toRow = header.querySelector('.g2');
+  if (toRow) {
+    const explicitRecipient = toRow.querySelector('[email]');
+    if (explicitRecipient && explicitRecipient.getAttribute('email')) {
+      return explicitRecipient.getAttribute('email');
+    }
+
+    const rowMatch = toRow.textContent.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/);
+    if (rowMatch) {
+      return rowMatch[0];
+    }
+  }
+
+  const candidateSpans = header.querySelectorAll('span[email]');
+  for (const span of candidateSpans) {
+    if (span.classList.contains('gD')) {
+      continue; // Skip the sender entry
+    }
+
+    const email = span.getAttribute('email');
+    if (email) {
+      return email;
+    }
+  }
+
+  const fallbackText = header.textContent || '';
+  const match = fallbackText.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/);
+  return match ? match[0] : '';
 }
 
 function getCurrentTab() {
@@ -1376,13 +1443,11 @@ function setDefaultInputValues(toolbar, subjectElement) {
         const role = subject.replace("Follow up on ", "").replace(" at " + companyName, "");
         roleInput.value = role;
 
-        let emailSpans = document.querySelectorAll("span[email]");
-        if (emailSpans.length > 0) {
-          let lastEmailSpan = emailSpans[emailSpans.length - 1];
-          let email = lastEmailSpan.getAttribute('email');
-          toolbar.querySelector('#company_email_input_field').value = email;
+        const detectedEmail = getActiveThreadRecipientEmail();
+        if (detectedEmail) {
+          toolbar.querySelector('#company_email_input_field').value = detectedEmail;
         } else {
-          alert('No email span found.');
+          alert('Unable to detect recipient email in this thread.');
         }
       }
       break;
@@ -1676,6 +1741,8 @@ const siteFunctions = {
   }
 };
 
+let overlayInitialized = false;
+
 let emailRegEx = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
 //let emailRegEx = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,8}\b(?!\.[A-Za-z]{2,8})/g;
 // let emailRegEx = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,8}\b(?![-_.A-Za-z0-9])/g;
@@ -1881,6 +1948,101 @@ function extractPythonCodingJobsJobInfo() {
     jobInfo.website = "https://" + jobInfo.companyEmail.split("@")[1];
   }
   return jobInfo;
+}
+
+function createTroubleshootingBox({ overlayShown, rawHtml, reason }) {
+  if (!troubleshooterEnabled) {
+    return;
+  }
+  const existingBox = document.getElementById('pingojo-troubleshooting-box');
+  if (existingBox) {
+    existingBox.remove();
+  }
+
+  const box = document.createElement('div');
+  box.id = 'pingojo-troubleshooting-box';
+  box.style.position = 'fixed';
+  box.style.bottom = '10px';
+  box.style.left = '10px';
+  box.style.width = '260px';
+  box.style.maxHeight = '50vh';
+  box.style.backgroundColor = '#fef3c7';
+  box.style.border = '1px solid #fcd34d';
+  box.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+  box.style.padding = '10px';
+  box.style.zIndex = '99999';
+  box.style.fontSize = '12px';
+  box.style.fontFamily = 'Arial, sans-serif';
+  box.style.color = '#78350f';
+  box.style.overflow = 'hidden';
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.justifyContent = 'space-between';
+  header.style.alignItems = 'center';
+  header.style.marginBottom = '6px';
+
+  const title = document.createElement('strong');
+  title.textContent = 'Pingojo Troubleshooter';
+  header.appendChild(title);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.border = 'none';
+  closeBtn.style.background = 'transparent';
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.style.color = '#92400e';
+  closeBtn.onclick = () => box.remove();
+  header.appendChild(closeBtn);
+
+  box.appendChild(header);
+
+  const htmlLength = document.documentElement.outerHTML.length;
+  const status = document.createElement('p');
+  status.style.margin = '4px 0';
+  status.textContent = `HTML size: ${htmlLength.toLocaleString()} chars`;
+  box.appendChild(status);
+
+  const overlayStatus = document.createElement('p');
+  overlayStatus.style.margin = '4px 0';
+  overlayStatus.textContent = overlayShown ? 'Overlay detected ✅' : 'Overlay missing ⚠️';
+  box.appendChild(overlayStatus);
+
+  if (!overlayShown) {
+    const reasonParagraph = document.createElement('p');
+    reasonParagraph.style.margin = '4px 0';
+    reasonParagraph.textContent = reason || 'No job schema match detected.';
+    box.appendChild(reasonParagraph);
+
+    if (rawHtml && rawHtml.length) {
+      const copyButton = document.createElement('button');
+      copyButton.textContent = 'Copy page HTML';
+      copyButton.style.marginTop = '6px';
+      copyButton.style.padding = '4px 6px';
+      copyButton.style.border = '1px solid #fbbf24';
+      copyButton.style.backgroundColor = '#fcd34d';
+      copyButton.style.cursor = 'pointer';
+      copyButton.onclick = () => {
+        navigator.clipboard.writeText(rawHtml).then(() => {
+          copyButton.textContent = 'Copied!';
+          setTimeout(() => (copyButton.textContent = 'Copy page HTML'), 2000);
+        });
+      };
+      box.appendChild(copyButton);
+
+      const textarea = document.createElement('textarea');
+      textarea.value = rawHtml;
+      textarea.readOnly = true;
+      textarea.style.marginTop = '6px';
+      textarea.style.width = '100%';
+      textarea.style.height = '120px';
+      textarea.style.fontSize = '10px';
+      textarea.style.fontFamily = 'monospace';
+      box.appendChild(textarea);
+    }
+  }
+
+  document.body.appendChild(box);
 }
 
 function extractDiceJobInfo() {
@@ -2156,6 +2318,95 @@ function extractApplyToJobJobInfo() {
   return jobInfo;
 }
 
+function resolveJobPostingNode(node) {
+  if (!node) {
+    return null;
+  }
+
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const match = resolveJobPostingNode(item);
+      if (match) {
+        return match;
+      }
+    }
+    return null;
+  }
+
+  if (typeof node === 'object') {
+    if (node['@type'] === 'JobPosting') {
+      return node;
+    }
+
+    if (node['@graph']) {
+      return resolveJobPostingNode(node['@graph']);
+    }
+  }
+
+  return null;
+}
+
+function findJobPostingFromScripts() {
+  const scripts = Array.from(document.getElementsByTagName('script'));
+  for (const script of scripts) {
+    if (script.getAttribute('type') === 'application/ld+json') {
+      try {
+        const data = JSON.parse(script.textContent);
+        const jobData = resolveJobPostingNode(data);
+        if (jobData) {
+          return jobData;
+        }
+      } catch (error) {
+        // ignore parse errors and continue
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractGenericJobInfo() {
+  const jobData = findJobPostingFromScripts();
+  const jobInfo = {};
+
+  if (!jobData) {
+    return jobInfo;
+  }
+
+  const formatDateValue = (value) => {
+    if (!value) {
+      return '';
+    }
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+  };
+
+  jobInfo.title = jobData.title || '';
+  jobInfo.company = jobData.hiringOrganization?.name || '';
+  jobInfo.description = jobData.description || jobData.descriptionHtml || '';
+  jobInfo.datePosted = formatDateValue(jobData.datePosted);
+  jobInfo.validThrough = formatDateValue(jobData.validThrough);
+  jobInfo.employmentType = jobData.employmentType || '';
+  jobInfo.location = jobData.jobLocation?.address
+    ? `${jobData.jobLocation.address.addressLocality || ''}, ${jobData.jobLocation.address.addressRegion || ''}`.trim()
+    : Array.isArray(jobData.jobLocation)
+      ? jobData.jobLocation.map((loc) => `${loc.address?.addressLocality || ''}, ${loc.address?.addressRegion || ''}`.trim()).join('; ')
+      : '';
+  jobInfo.website = jobData.hiringOrganization?.sameAs || jobData.hiringOrganization?.url || '';
+
+  if (jobData.baseSalary) {
+    const min = jobData.baseSalary.value?.minValue ?? jobData.baseSalary.value?.value;
+    const max = jobData.baseSalary.value?.maxValue ?? jobData.baseSalary.value?.value;
+    const currency = jobData.baseSalary.currency || '';
+    if (min || max) {
+      jobInfo.salaryRange = `${currency ? currency + ' ' : ''}${min || max || ''}${min && max ? ' - ' : ''}${max || ''}`.trim();
+    }
+  }
+
+  return jobInfo;
+}
+
 function extractYCombinatorJobInfo() {
   const jobInfo = {};
   const scripts = Array.from(document.getElementsByTagName('script'));
@@ -2400,6 +2651,14 @@ function getCookie(name) {
 }
 
 async function createOverlay(jobsite) {
+  const existingOverlay = document.getElementById('job-data-extractor-overlay');
+  if (existingOverlay) {
+    existingOverlay.remove();
+  }
+
+  overlayInitialized = true;
+  createTroubleshootingBox({ overlayShown: true });
+
   const overlay = document.createElement("div");
   overlay.id = "job-data-extractor-overlay";
   overlay.style.position = "fixed";
@@ -2483,6 +2742,8 @@ async function createOverlay(jobsite) {
     jobInfo = extractYCombinatorJobInfo();
   } else if (jobsite === "builtin") {
     jobInfo = extractbuiltinobInfo();
+  } else if (jobsite === "generic") {
+    jobInfo = extractGenericJobInfo();
   }
   const emails = searchElement(document.body);
   const form = document.createElement("form");
@@ -2785,6 +3046,19 @@ for (const site in siteFunctions) {
   if (currentURL.includes(site)) {
     siteFunctions[site]();
     break;
+  }
+}
+
+if (!overlayInitialized) {
+  const jobSchema = findJobPostingFromScripts();
+  if (jobSchema) {
+    createOverlay('generic');
+  } else {
+    createTroubleshootingBox({
+      overlayShown: false,
+      rawHtml: document.documentElement.outerHTML,
+      reason: 'No supported job schema or domain match.'
+    });
   }
 }
 
