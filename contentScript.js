@@ -332,7 +332,7 @@ function initBounceWatcher() {
 }
 
 function detectBounceEmail() {
-  const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
+  const emailContainer = getActiveEmailContainer();
   if (!emailContainer) {
     hideBounceReportButton();
     return;
@@ -700,10 +700,13 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
 
 function sendDetailInfoToDRF(stage) {
   return new Promise((resolve, reject) => {
-    const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
-    if (!emailContainer) reject(new Error('Email container not found'));
+    const emailContainer = getActiveEmailContainer();
+    if (!emailContainer) {
+      reject(new Error('Email container not found'));
+      return;
+    }
 
-    const emailMetaInfo = emailContainer.querySelector('.gE.iv.gt');
+    const emailMetaInfo = getEmailMetaInfo(emailContainer);
 
     const inputField2 = document.querySelector('#company_input_field');
     let companyName = '';
@@ -782,10 +785,13 @@ function rgbToHex(rgb) {
 }
 
 async function autoSubmitAppliedButton() {
-  const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
+  const emailContainer = getActiveEmailContainer();
 
   if (emailContainer) {
-    const emailMetaInfo = emailContainer.querySelector('.gE.iv.gt');
+    const emailMetaInfo = getEmailMetaInfo(emailContainer);
+    if (!emailMetaInfo) {
+      return;
+    }
     const fromEmailElement = emailMetaInfo.querySelector('.go');
     let fromAddress = fromEmailElement ? fromEmailElement.textContent : '';
     if (!fromAddress) {
@@ -1168,6 +1174,37 @@ function parseDomain(email) {
   return parts.join('.');
 }
 
+function isElementVisible(element) {
+  if (!element) {
+    return false;
+  }
+  return !!(element.offsetParent !== null || element.getClientRects().length);
+}
+
+function getActiveEmailContainer() {
+  const selector = '.h7 [data-legacy-message-id], .h7 [data-message-id], [role="main"] [data-legacy-message-id], [role="main"] [data-message-id], [data-legacy-message-id], [data-message-id]';
+  const candidates = Array.from(document.querySelectorAll(selector));
+  const visibleCandidates = candidates.filter(isElementVisible);
+  if (visibleCandidates.length > 0) {
+    return visibleCandidates[visibleCandidates.length - 1];
+  }
+  return null;
+}
+
+function getToolbarAnchorFromContainer(container) {
+  if (!container) {
+    return null;
+  }
+  return container.closest('.adn, .nH') || container.parentElement || container;
+}
+
+function getEmailMetaInfo(container) {
+  if (!container) {
+    return null;
+  }
+  return container.querySelector('.gE.iv.gt') || container.querySelector('.gE.iv') || container.querySelector('.gE');
+}
+
 document.addEventListener('click', () => {
   const dropdowns = document.querySelectorAll('.dropdown-menu');
   dropdowns.forEach((dropdown) => {
@@ -1358,8 +1395,8 @@ const debouncedAddButtonAndInput = debounce(addButtonAndInput, 500);
 
 function addButtonAndInput() {
   const addToolbar = async () => {
-    const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
-    const subjectElement = document.querySelector('h2[data-thread-perm-id]');
+    const emailContainer = getActiveEmailContainer();
+    const subjectElement = document.querySelector('h2[data-thread-perm-id]') || document.querySelector('h2.hP');
     const existingToolbar = document.querySelector('#company_toolbar');
 
     if (existingToolbar) {
@@ -1382,7 +1419,14 @@ function addButtonAndInput() {
         setDefaultInputValues(toolbar, subjectElement);
       }
 
-      emailContainer.parentNode.insertBefore(toolbar, emailContainer);
+      const toolbarAnchor = getToolbarAnchorFromContainer(emailContainer);
+      if (toolbarAnchor && toolbarAnchor.parentNode) {
+        toolbarAnchor.parentNode.insertBefore(toolbar, toolbarAnchor);
+      } else if (emailContainer.parentNode) {
+        emailContainer.parentNode.insertBefore(toolbar, emailContainer);
+      } else {
+        return;
+      }
 
       const toolbarButton = document.createElement('button');
       toolbarButton.style.margin = '5px';
@@ -1433,12 +1477,12 @@ function addButtonAndInput() {
 }
 
 function getActiveThreadRecipientEmail() {
-  const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
+  const emailContainer = getActiveEmailContainer();
   if (!emailContainer) {
     return '';
   }
 
-  const header = emailContainer.querySelector('.gE.iv.gt');
+  const header = getEmailMetaInfo(emailContainer);
   if (!header) {
     return '';
   }
@@ -1582,10 +1626,13 @@ function setDefaultInputValues(toolbar, subjectElement) {
     linkToPingojo.innerHTML = '<img style="margin-top:5px;" src="' + pingojoIconUrl + '" alt="Search ' + companyName + ' on Pingojo" title="Search ' + companyName + ' on Pingojo" height="30px;">';
     buttonContainer.appendChild(linkToPingojo);
   }
-  const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
+  const emailContainer = getActiveEmailContainer();
 
   if (emailContainer) {
-    const emailMetaInfo = emailContainer.querySelector('.gE.iv.gt');
+    const emailMetaInfo = getEmailMetaInfo(emailContainer);
+    if (!emailMetaInfo) {
+      return;
+    }
     const fromEmailElement = emailMetaInfo.querySelector('.go');
     const fromAddress = fromEmailElement ? fromEmailElement.textContent : '';
 
@@ -1804,6 +1851,7 @@ const siteFunctions = {
     listenHashChanged();
     injectStylesheet();
     initBounceWatcher();
+    debouncedAddButtonAndInput();
   },
   'greenhouse.io': function () {
     if (isJobPosting("greenhouse")) {
