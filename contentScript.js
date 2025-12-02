@@ -313,99 +313,200 @@ async function highlightCompanyNames() {
 
 }
 
-// function checkForBounceEmail() {
-//   const bounceText = "the email account that you tried to reach does not exist";
-//   const deliveryFailureText = "Your message wasn't delivered to";
+let bounceObserverInstance = null;
+let bounceButtonElement = null;
 
-//   const observer = new MutationObserver((mutations) => {
-//     mutations.forEach((mutation) => {
-//       const elements = Array.from(document.querySelectorAll("*"));
-//       let found = false;
+function initBounceWatcher() {
+  if (bounceObserverInstance) {
+    return;
+  }
 
-//       for (let index = 0; index < elements.length && !found; index++) {
-//         const element = elements[index];
-//         const text = element.textContent.toLowerCase();
+  const debouncedDetection = debounce(detectBounceEmail, 400);
+  bounceObserverInstance = new MutationObserver(() => debouncedDetection());
+  bounceObserverInstance.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
 
-//         // Look for the specific bounce message or delivery failure message
-//         if (text.indexOf(bounceText) !== -1 || text.indexOf(deliveryFailureText.toLowerCase()) !== -1) {
-//           found = true;
+  detectBounceEmail();
+}
 
-//           // Extract the email address after "Your message wasn't delivered to"
-//           let bouncedEmail = null;
-//           if (text.indexOf(deliveryFailureText.toLowerCase()) !== -1) {
-//             const emailStartIndex = text.indexOf(deliveryFailureText.toLowerCase()) + deliveryFailureText.length;
-//             const emailMatch = text.slice(emailStartIndex).match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
-//             bouncedEmail = emailMatch ? emailMatch[0] : null;
-//           }
+function detectBounceEmail() {
+  const emailContainer = document.querySelector('.h7 [data-legacy-message-id]');
+  if (!emailContainer) {
+    hideBounceReportButton();
+    return;
+  }
 
-//           if (bouncedEmail) {
-//             // Create and display the "Report Bounce" button with the email address
-//             const reportBounceDiv = document.createElement('div');
-//             reportBounceDiv.style.position = 'fixed';
-//             reportBounceDiv.style.right = '10px';
-//             reportBounceDiv.style.top = '50%';
-//             reportBounceDiv.style.transform = 'translateY(-50%)';
-//             reportBounceDiv.style.backgroundColor = '#ff9800';
-//             reportBounceDiv.style.color = '#fff';
-//             reportBounceDiv.style.padding = '10px';
-//             reportBounceDiv.style.borderRadius = '5px';
-//             reportBounceDiv.style.cursor = 'pointer';
-//             reportBounceDiv.style.zIndex = '10000';
+  const messageText = emailContainer.innerText || '';
+  const lowerText = messageText.toLowerCase();
+  const indicators = [
+    "your message wasn't delivered to",
+    'the email account that you tried to reach does not exist',
+    'address not found'
+  ];
 
-//             // Set the button text with the email in a smaller font
-//             reportBounceDiv.innerHTML = `Report Bounce<br><small>${bouncedEmail}</small>`;
+  const hasIndicator = indicators.some((phrase) => lowerText.includes(phrase));
+  if (!hasIndicator) {
+    hideBounceReportButton();
+    return;
+  }
 
-//             document.body.appendChild(reportBounceDiv);
+  const bouncedEmail = extractBouncedEmail(messageText);
+  if (!bouncedEmail) {
+    hideBounceReportButton();
+    return;
+  }
 
-//             reportBounceDiv.addEventListener('click', () => {
-//               const bounceReason = "The email account that you tried to reach does not exist.";
-//               reportBouncedEmailToPingojo(bouncedEmail, bounceReason);
-//             });
+  const reason = extractBounceReason(messageText);
+  showBounceReportButton(bouncedEmail, reason);
+}
 
-//           } else {
-//             alert('Failed to extract email address.');
-//           }
+function extractBouncedEmail(messageText) {
+  const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+  const explicitMatch = messageText.match(/Your message wasn't delivered to\s+([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/i);
+  if (explicitMatch) {
+    return explicitMatch[1];
+  }
 
-//           observer.disconnect(); // Stop observing after the bounce text is found
-//         }
-//       }
-//     });
-//   });
+  const emailsFound = messageText.match(emailPattern) || [];
+  return emailsFound.find((email) => {
+    const lower = email.toLowerCase();
+    return !lower.includes('mailer-daemon') && !lower.includes('googlemail.com') && !lower.includes('postmaster');
+  });
+}
 
-//   observer.observe(document.body, {
-//     childList: true,
-//     subtree: true,
-//   });
-// }
+function extractBounceReason(messageText) {
+  const reasonMatch = messageText.match(/Address not found[\s\S]*?(?=\n\n|$)/i);
+  if (reasonMatch) {
+    return reasonMatch[0].trim();
+  }
 
+  const fallback = messageText.match(/The response from the remote server was:(.*)/i);
+  if (fallback) {
+    return fallback[0].trim();
+  }
 
+  return 'Delivery failure reported by Gmail.';
+}
 
+function showBounceReportButton(email, reason) {
+  if (!email) {
+    return;
+  }
 
-// function reportBouncedEmailToPingojo(email, reason) {
-//   const apiUrl = "https://pingojo.com/api/report_bounce/"; // Replace with the correct Pingojo API endpoint
+  if (!bounceButtonElement) {
+    bounceButtonElement = document.createElement('div');
+    bounceButtonElement.id = 'pingojo-bounce-report';
+    bounceButtonElement.style.position = 'fixed';
+    bounceButtonElement.style.right = '10px';
+    bounceButtonElement.style.top = '50%';
+    bounceButtonElement.style.transform = 'translateY(-50%)';
+    bounceButtonElement.style.backgroundColor = '#f97316';
+    bounceButtonElement.style.color = '#fff';
+    bounceButtonElement.style.padding = '12px';
+    bounceButtonElement.style.borderRadius = '8px';
+    bounceButtonElement.style.cursor = 'pointer';
+    bounceButtonElement.style.zIndex = '10000';
+    bounceButtonElement.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+    bounceButtonElement.style.fontFamily = 'Arial, sans-serif';
+    bounceButtonElement.style.fontSize = '13px';
 
-//   fetch(apiUrl, {
-//     method: "POST",
-//     headers: {
-//       "Content-Type": "application/json"
-//     },
-//     body: JSON.stringify({ email: email, reason: reason })
-//   })
-//   .then(response => response.json())
-//   .then(data => {
-//     if (data.success) {
-//       alert('Bounced email reported successfully.');
-//     } else {
-//       alert('Failed to report the bounced email.');
-//     }
-//   })
-//   .catch(error => {
-//     console.error('Error reporting bounced email:', error);
-//     alert('An error occurred while reporting the bounced email.');
-//   });
-// }
+    bounceButtonElement.addEventListener('click', () => {
+      const targetEmail = bounceButtonElement.dataset.email;
+      const bounceReason = bounceButtonElement.dataset.reason;
+      bounceButtonElement.textContent = 'Reporting bounced email…';
 
-// checkForBounceEmail();
+      reportBouncedEmailToPingojo(targetEmail, bounceReason)
+        .then(() => {
+          bounceButtonElement.textContent = 'Marked as bounced ✓';
+          setTimeout(hideBounceReportButton, 2500);
+        })
+        .catch(() => {
+          bounceButtonElement.textContent = 'Failed to report. Retry?';
+          setTimeout(() => {
+            const emailLabel = bounceButtonElement.dataset.email || '';
+            bounceButtonElement.innerHTML = `Mark as bounced<br><small>${emailLabel}</small>`;
+          }, 2000);
+        });
+    });
+
+    document.body.appendChild(bounceButtonElement);
+  }
+
+  bounceButtonElement.dataset.email = email;
+  bounceButtonElement.dataset.reason = reason;
+  bounceButtonElement.innerHTML = `Mark as bounced<br><small>${email}</small>`;
+  bounceButtonElement.style.display = 'block';
+}
+
+function hideBounceReportButton() {
+  if (bounceButtonElement) {
+    bounceButtonElement.style.display = 'none';
+  }
+}
+
+function reportBouncedEmailToPingojo(email, reason) {
+  return new Promise((resolve, reject) => {
+    if (!email) {
+      reject(new Error('No email provided'));
+      return;
+    }
+
+    chrome.storage.sync.get('base_url', ({ base_url }) => {
+      const baseUrl = base_url || 'https://www.pingojo.com';
+      const apiUrl = baseUrl + '/api/report_bounce/';
+
+      chrome.runtime.sendMessage({ type: 'getSessionCookie', url: baseUrl }, (sessionCookie) => {
+        if (!sessionCookie) {
+          window.location = baseUrl + '/accounts/login/?from=gmail';
+          reject(new Error('Missing session cookie'));
+          return;
+        }
+
+        chrome.runtime.sendMessage({ type: 'getCSRFToken', url: baseUrl }, (csrfToken) => {
+          if (!csrfToken) {
+            window.location = baseUrl + '/accounts/login/?from=gmail';
+            reject(new Error('Missing CSRF token'));
+            return;
+          }
+
+          const headers = {
+            'Content-Type': 'application/json',
+            'Cookie': `sessionid=${sessionCookie.value}`,
+            'X-CSRFToken': csrfToken,
+          };
+
+          const payload = { email, reason };
+
+          chrome.runtime.sendMessage({ type: 'getCurrentTab' }, (currentTab) => {
+            if (currentTab && currentTab.url) {
+              const gmailIdMatch = currentTab.url.match(/\/([a-zA-Z0-9]+)$/);
+              if (gmailIdMatch) {
+                payload.gmail_id = gmailIdMatch[1];
+              }
+            }
+
+            fetch(apiUrl, {
+              method: 'POST',
+              credentials: 'include',
+              headers,
+              body: JSON.stringify(payload),
+            })
+              .then((response) => {
+                if (!response.ok) {
+                  throw new Error('Network response was not ok');
+                }
+                return response.json();
+              })
+              .then(resolve)
+              .catch(reject);
+          });
+        });
+      });
+    });
+  });
+}
 
 const style = document.createElement('style');
 style.textContent = `
@@ -1702,6 +1803,7 @@ const siteFunctions = {
     observeSidebar();
     listenHashChanged();
     injectStylesheet();
+    initBounceWatcher();
   },
   'greenhouse.io': function () {
     if (isJobPosting("greenhouse")) {
