@@ -2905,7 +2905,7 @@ async function createOverlay(jobsite) {
       email: ''
     };
     chrome.storage.sync.set({ last_job_viewed: lastViewed });
-  } catch (e) {}
+  } catch (e) { }
   const emails = searchElement(document.body);
   const form = document.createElement("form");
   form.id = "job-data-extractor-form";
@@ -2981,7 +2981,7 @@ async function createOverlay(jobsite) {
                   }
                   prompt_text += `Resume link: ${personalized}\n\n`;
                 }
-              } catch (_) {}
+              } catch (_) { }
               resolve();
             });
           });
@@ -3213,7 +3213,7 @@ async function createOverlay(jobsite) {
     }
   });
   if (migrated) {
-    chrome.storage.local.set({ applications }, () => {});
+    chrome.storage.local.set({ applications }, () => { });
   }
 
   function normalizeName(name) {
@@ -3236,6 +3236,13 @@ async function createOverlay(jobsite) {
     applicationInfo.style.backgroundColor = "#eee";
     const roleDisplay = application.job_role || application.role_title || application.role_name || '(role unknown)';
     applicationInfo.textContent = `${application.stage_name} - ${roleDisplay} at ${application.company_name}`;
+
+    if (application.company_email) {
+      const emailLine = document.createElement("div");
+      emailLine.style.marginTop = "6px";
+      emailLine.textContent = `Email: ${application.company_email}`;
+      applicationInfo.appendChild(emailLine);
+    }
 
     const followUpButton = document.createElement("button");
     if (application.stage_name != "Passed") {
@@ -3274,7 +3281,7 @@ async function createOverlay(jobsite) {
 // Function to handle the follow-up button click
 async function handleFollowUpButtonClick(application) {
   try {
-    const email = await fetchEmailFromServer(application.company_name);
+    const email = application.company_email || (await fetchEmailFromServer(application.company_name));
     const fullName = localStorage.getItem('full_name');
     openGmailComposeWithEmail(application.company_name, email, application.job_role, fullName);
   } catch (error) {
