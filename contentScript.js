@@ -2895,6 +2895,17 @@ async function createOverlay(jobsite) {
   } else if (jobsite === "generic") {
     jobInfo = extractGenericJobInfo();
   }
+
+  // Persist last viewed job details for popup autofill
+  try {
+    const lastViewed = {
+      company_name: jobInfo.company || '',
+      role_title: jobInfo.title || '',
+      job_role: jobInfo.title || '',
+      email: ''
+    };
+    chrome.storage.sync.set({ last_job_viewed: lastViewed });
+  } catch (e) {}
   const emails = searchElement(document.body);
   const form = document.createElement("form");
   form.id = "job-data-extractor-form";
@@ -2951,6 +2962,29 @@ async function createOverlay(jobsite) {
         if (emailMatch) {
           const email = emailMatch[0];
           prompt_text += `${email}\n\n`;
+
+          // Append a personalized Resume link using stored resume_url
+          await new Promise((resolve) => {
+            chrome.storage.sync.get("resume_url", ({ resume_url }) => {
+              try {
+                if (resume_url && resume_url.trim()) {
+                  let urlStr = resume_url.trim();
+                  let personalized = urlStr;
+                  try {
+                    const u = new URL(urlStr);
+                    if (!u.searchParams.get('email')) {
+                      u.searchParams.set('email', email);
+                    }
+                    personalized = u.toString();
+                  } catch (e) {
+                    personalized = urlStr + (urlStr.includes('?') ? '&' : '?') + 'email=' + encodeURIComponent(email);
+                  }
+                  prompt_text += `Resume link: ${personalized}\n\n`;
+                }
+              } catch (_) {}
+              resolve();
+            });
+          });
         }
 
       } catch (err) {
@@ -2994,6 +3028,60 @@ async function createOverlay(jobsite) {
     });
 
     container.appendChild(copyToClipboardButton);
+
+    // Add Resume Link copy button next to GPT
+    const resumeBtn = document.createElement("button");
+    resumeBtn.textContent = "Resume Link";
+    resumeBtn.style.marginLeft = "6px";
+    resumeBtn.style.marginBottom = "10px";
+    resumeBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        const clipboardText = await navigator.clipboard.readText();
+        const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
+        const emailMatch = clipboardText.match(emailRegex);
+        const email = emailMatch ? emailMatch[0] : '';
+
+        chrome.storage.sync.get("resume_url", ({ resume_url }) => {
+          if (resume_url && resume_url.trim()) {
+            let urlStr = resume_url.trim();
+            let personalized = urlStr;
+            try {
+              const u = new URL(urlStr);
+              if (email && !u.searchParams.get('email')) {
+                u.searchParams.set('email', email);
+              }
+              personalized = u.toString();
+            } catch (e2) {
+              if (email) {
+                personalized = urlStr + (urlStr.includes('?') ? '&' : '?') + 'email=' + encodeURIComponent(email);
+              }
+            }
+
+            navigator.clipboard.writeText(personalized)
+              .then(() => {
+                const original = resumeBtn.textContent;
+                resumeBtn.textContent = "Copied ✓";
+                setTimeout(() => (resumeBtn.textContent = original), 1500);
+              })
+              .catch(() => {
+                const original = resumeBtn.textContent;
+                resumeBtn.textContent = "Copy failed";
+                setTimeout(() => (resumeBtn.textContent = original), 1500);
+              });
+          } else {
+            const original = resumeBtn.textContent;
+            resumeBtn.textContent = "Set Resume URL";
+            setTimeout(() => (resumeBtn.textContent = original), 1500);
+          }
+        });
+      } catch (_) {
+        const original = resumeBtn.textContent;
+        resumeBtn.textContent = "Clipboard error";
+        setTimeout(() => (resumeBtn.textContent = original), 1500);
+      }
+    });
+    container.appendChild(resumeBtn);
   });
 
 
@@ -3116,8 +3204,29 @@ async function createOverlay(jobsite) {
 
   applications = await getApplications();
 
-  const company = jobInfo.company;
-  const application = applications.find(application => application.company_name.toLowerCase() === company.toLowerCase());
+  // Migrate missing job_role from role_title/role_name
+  let migrated = false;
+  applications.forEach(app => {
+    if (!app.job_role) {
+      if (app.role_title) { app.job_role = app.role_title; migrated = true; }
+      else if (app.role_name) { app.job_role = app.role_name; migrated = true; }
+    }
+  });
+  if (migrated) {
+    chrome.storage.local.set({ applications }, () => {});
+  }
+
+  function normalizeName(name) {
+    return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  const company = jobInfo.company || '';
+  const normalizedCompany = normalizeName(company);
+  let application = applications.find(app => normalizeName(app.company_name) === normalizedCompany);
+  if (!application) {
+    application = applications.find(app => normalizeName(app.company_name).includes(normalizedCompany) || normalizedCompany.includes(normalizeName(app.company_name)));
+  }
+
   if (application) {
     const applicationInfo = document.createElement("div");
     applicationInfo.style.marginBottom = "10px";
@@ -3125,7 +3234,8 @@ async function createOverlay(jobsite) {
     applicationInfo.style.border = "1px solid #ccc";
     applicationInfo.style.borderRadius = "5px";
     applicationInfo.style.backgroundColor = "#eee";
-    applicationInfo.textContent = `${application.stage_name} - ${application.job_role} at ${application.company_name}`;
+    const roleDisplay = application.job_role || application.role_title || application.role_name || '(role unknown)';
+    applicationInfo.textContent = `${application.stage_name} - ${roleDisplay} at ${application.company_name}`;
 
     const followUpButton = document.createElement("button");
     if (application.stage_name != "Passed") {

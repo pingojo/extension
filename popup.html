@@ -109,6 +109,13 @@
       </form>
       <p>Current Email Address: <span data-display-key="email_address"></span></p>
 
+      <h1>Resume URL</h1>
+      <form data-form-key="resume_url">
+        <input type="url" placeholder="https://example.com/your-resume.pdf" />
+        <button type="submit">Save</button>
+      </form>
+      <p>Current Resume URL: <span data-display-key="resume_url"></span></p>
+
       <h1>Diagnostics</h1>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
         <input type="checkbox" id="troubleshooter-toggle" />
@@ -136,6 +143,24 @@
         <input type="email" id="company_email" placeholder="Enter Company Email">
         <button id="submit-email">Submit Job</button>
       </form>
+
+      <hr>
+      <h1>Manage Application Status</h1>
+      <div id="status-manager">
+        <input type="text" id="sm-company" placeholder="Company" />
+        <input type="text" id="sm-role" placeholder="Role" />
+        <input type="email" id="sm-email" placeholder="Company Email" />
+        <div style="margin:6px 0;">
+          <button id="sm-fill-storage">Fill from Chrome Storage</button>
+        </div>
+        <div id="sm-buttons">
+          <button class="sm-stage" data-stage="Applied">Applied</button>
+          <button class="sm-stage" data-stage="Scheduled">Scheduled</button>
+          <button class="sm-stage" data-stage="Next">Next</button>
+          <button class="sm-stage" data-stage="Passed">Passed</button>
+        </div>
+        <div id="sm-feedback" style="margin-top:8px;font-size:12px;color:#555;"></div>
+      </div>
     </div>
   </div>
 
