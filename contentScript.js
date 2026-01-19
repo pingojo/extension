@@ -1348,6 +1348,7 @@ async function fetchCountsAndApplicationsFromServer() {
                     subject: email.subject,
                     company_name: email.company_name,
                     company_slug: email.company_slug,
+                    company_email: email.company_email,
                     job_link: email.job_link,
                     job_role: email.job_role,
                     stage_name: email.stage_name,
@@ -3220,12 +3221,40 @@ async function createOverlay(jobsite) {
     return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
-  const company = jobInfo.company || '';
-  const normalizedCompany = normalizeName(company);
-  let application = applications.find(app => normalizeName(app.company_name) === normalizedCompany);
-  if (!application) {
-    application = applications.find(app => normalizeName(app.company_name).includes(normalizedCompany) || normalizedCompany.includes(normalizeName(app.company_name)));
+  function slugifyName(name) {
+    return (name || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
   }
+
+  function matchApplication(companyName, apps) {
+    const norm = normalizeName(companyName);
+    const slug = slugifyName(companyName);
+    if (!norm) return null;
+
+    // Exact normalized match
+    let found = apps.find(a => normalizeName(a.company_name) === norm);
+    if (found) return found;
+
+    // Slug match if present
+    found = apps.find(a => slugifyName(a.company_slug || a.company_name) === slug);
+    if (found) return found;
+
+    // Contains either way
+    found = apps.find(a => {
+      const n = normalizeName(a.company_name);
+      return n.includes(norm) || norm.includes(n);
+    });
+    if (found) return found;
+
+    // Last resort: startswith
+    found = apps.find(a => normalizeName(a.company_name).startsWith(norm) || norm.startsWith(normalizeName(a.company_name)));
+    return found || null;
+  }
+
+  const company = jobInfo.company || '';
+  let application = matchApplication(company, applications);
 
   if (application) {
     const applicationInfo = document.createElement("div");
