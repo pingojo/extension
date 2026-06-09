@@ -2117,6 +2117,33 @@ function getCurrentApplyJobInfo() {
   return jobInfo;
 }
 
+function persistCurrentJobInfo(jobInfo, source) {
+  const currentJobInfo = {
+    ...(jobInfo || {}),
+    source: source || '',
+    savedAt: new Date().toISOString()
+  };
+
+  if (!currentJobInfo.link && isCurrentPageJobPost()) {
+    currentJobInfo.link = window.location.href.split("?")[0];
+  }
+
+  window.pingojoCurrentJobInfo = currentJobInfo;
+
+  const lastViewed = {
+    company_name: currentJobInfo.company || '',
+    role_title: currentJobInfo.title || '',
+    job_role: currentJobInfo.title || '',
+    website: currentJobInfo.website || '',
+    job_url: currentJobInfo.link || '',
+    source: currentJobInfo.source || '',
+    saved_at: currentJobInfo.savedAt || '',
+    email: ''
+  };
+
+  chrome.storage.sync.set({ last_job_viewed: lastViewed });
+}
+
 function normalizeStoredJobInfo(value) {
   return {
     company: value.company || value.company_name || '',
@@ -2250,19 +2277,22 @@ function fetchBackendApplyJobInfo(baseUrl, email, currentJobInfo, callback) {
 function addApplyLinkIfEligible(container, email, baseUrl) {
   const currentJobInfo = getCurrentApplyJobInfo();
   const addApplyLink = (applyJobInfo) => {
-    if (!applyJobInfo || container.querySelector('.pingojo-apply-link')) {
+    if (!applyJobInfo) {
       return;
     }
 
-    const spacer = document.createTextNode(" ");
-    container.appendChild(spacer);
+    let applyLink = container.querySelector('.pingojo-apply-link');
+    if (!applyLink) {
+      const spacer = document.createTextNode(" ");
+      container.appendChild(spacer);
 
-    const applyLink = document.createElement("a");
-    applyLink.className = "pingojo-apply-link";
+      applyLink = document.createElement("a");
+      applyLink.className = "pingojo-apply-link";
+      applyLink.target = "_blank";
+      applyLink.textContent = "Apply";
+      container.appendChild(applyLink);
+    }
     applyLink.href = buildPingojoApplyUrl(baseUrl, email, applyJobInfo);
-    applyLink.target = "_blank";
-    applyLink.textContent = "Apply";
-    container.appendChild(applyLink);
   };
 
   if (getEmailDomain(email)) {
@@ -2654,7 +2684,7 @@ async function createOverlay(jobsite) {
       'employmentType'
     ])
     : jobInfo;
-  window.pingojoCurrentJobInfo = jobInfo;
+  persistCurrentJobInfo(jobInfo, jobsite);
   const emails = searchElement(document.body);
   const form = document.createElement("form");
   form.id = "job-data-extractor-form";

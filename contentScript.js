@@ -2837,6 +2837,33 @@ function getCurrentApplyJobInfo() {
   return jobInfo;
 }
 
+function persistCurrentJobInfo(jobInfo, source) {
+  const currentJobInfo = {
+    ...(jobInfo || {}),
+    source: source || '',
+    savedAt: new Date().toISOString()
+  };
+
+  if (!currentJobInfo.link && isCurrentPageJobPost()) {
+    currentJobInfo.link = window.location.href.split("?")[0];
+  }
+
+  window.pingojoCurrentJobInfo = currentJobInfo;
+
+  const lastViewed = {
+    company_name: currentJobInfo.company || '',
+    role_title: currentJobInfo.title || '',
+    job_role: currentJobInfo.title || '',
+    website: currentJobInfo.website || '',
+    job_url: currentJobInfo.link || '',
+    source: currentJobInfo.source || '',
+    saved_at: currentJobInfo.savedAt || '',
+    email: ''
+  };
+
+  chrome.storage.sync.set({ last_job_viewed: lastViewed });
+}
+
 function normalizeStoredJobInfo(value) {
   return {
     company: value.company || value.company_name || '',
@@ -2970,19 +2997,22 @@ function fetchBackendApplyJobInfo(baseUrl, email, currentJobInfo, callback) {
 function addApplyLinkIfEligible(li, email, baseUrl) {
   const currentJobInfo = getCurrentApplyJobInfo();
   const addApplyLink = (applyJobInfo) => {
-    if (!applyJobInfo || li.querySelector('.pingojo-apply-link')) {
+    if (!applyJobInfo) {
       return;
     }
 
-    const spacer = document.createTextNode(" ");
-    li.appendChild(spacer);
+    let applyLink = li.querySelector('.pingojo-apply-link');
+    if (!applyLink) {
+      const spacer = document.createTextNode(" ");
+      li.appendChild(spacer);
 
-    const applyLink = document.createElement("a");
-    applyLink.className = "pingojo-apply-link";
+      applyLink = document.createElement("a");
+      applyLink.className = "pingojo-apply-link";
+      applyLink.target = "_blank";
+      applyLink.textContent = "Apply";
+      li.appendChild(applyLink);
+    }
     applyLink.href = buildPingojoApplyUrl(baseUrl, email, applyJobInfo);
-    applyLink.target = "_blank";
-    applyLink.textContent = "Apply";
-    li.appendChild(applyLink);
   };
 
   if (getEmailDomain(email)) {
@@ -3386,20 +3416,9 @@ async function createOverlay(jobsite) {
       'employmentType'
     ])
     : jobInfo;
-  window.pingojoCurrentJobInfo = jobInfo;
+  persistCurrentJobInfo(jobInfo, jobsite);
 
   // Persist last viewed job details for popup autofill
-  try {
-    const lastViewed = {
-      company_name: jobInfo.company || '',
-      role_title: jobInfo.title || '',
-      job_role: jobInfo.title || '',
-      website: jobInfo.website || '',
-      job_url: jobInfo.link || '',
-      email: ''
-    };
-    chrome.storage.sync.set({ last_job_viewed: lastViewed });
-  } catch (e) { }
   const emails = searchElement(document.body);
   const form = document.createElement("form");
   form.id = "job-data-extractor-form";
