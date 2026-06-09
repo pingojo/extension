@@ -2985,6 +2985,10 @@ function addApplyLinkIfEligible(li, email, baseUrl) {
     li.appendChild(applyLink);
   };
 
+  if (isCurrentPageJobPost() && getEmailDomain(email)) {
+    addApplyLink(getApplyJobInfoForEmail(currentJobInfo, email));
+  }
+
   findLocalApplyJobInfo(email, currentJobInfo, (localApplyJobInfo) => {
     if (localApplyJobInfo) {
       addApplyLink(localApplyJobInfo);
