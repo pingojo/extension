@@ -32,6 +32,8 @@ The button will change to "Added" and become disabled once the contact has been 
 
 If you wish to contribute to the development of the Pingojo CRM Chrome Extension, please submit a pull request or open an issue on the GitHub repository.
 
+Do not write to the browser console from extension code. Avoid `console.log`, `console.error`, `console.warn`, and related calls; use user-facing UI states or silent failure handling instead.
+
 ## Support
 
 For any questions, issues, or feature requests, please open an issue or create a topic in our discussion board 

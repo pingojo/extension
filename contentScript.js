@@ -94,7 +94,6 @@ async function highlightCompanyNames() {
         range.surroundContents(span);
       }
       catch (err) {
-        // console.log(err);
       }
 
       regex.lastIndex -= matchedText.length - 1;
@@ -690,7 +689,6 @@ function rgbToHex(rgb) {
   const match = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
   if (!match) {
     // Handle the case where rgb string does not match the expected pattern
-    console.error('Invalid RGB value:', rgb);
     return '#000000'; // Return a default color (black) or handle it as needed
   }
   function hex(x) {
@@ -802,7 +800,6 @@ async function autoSubmitAppliedButton() {
                   }, 100);  // Adjust the delay as needed
                 }
               } catch (err) {
-                console.error(err);
               }
             }
           }
@@ -870,10 +867,8 @@ function createDetailButton(label, spinner, checkmark) {
             });
 
             chrome.storage.local.set({ 'applications': applications }, function () {
-              console.log('Application saved to localStorage:', companyName, roleName, companyEmail);
             });
           } else {
-            console.log('Application already exists in localStorage');
           }
         });
 
@@ -1889,7 +1884,6 @@ const siteFunctions = {
   },
   'greenhouse.io': function () {
     if (isJobPosting("greenhouse")) {
-      console.log('creating overlay for: ', currentURL);
       createOverlay("greenhouse");
     }
   },
@@ -2026,22 +2020,7 @@ function isJobPosting(source) {
     }
   }
   else if (source == "wellfound") {
-    const element = document.getElementById("__NEXT_DATA__");
-    if (element !== null) {
-      return currentURL.includes("/jobs/");
-    } else {
-      if (currentURL.includes("/jobs/")) {
-        const scriptTags = document.getElementsByTagName('script');
-        for (const scriptTag of scriptTags) {
-          if (scriptTag.type === 'application/ld+json') {
-            const data = JSON.parse(scriptTag.textContent);
-            if (data['@type'] === 'JobPosting') {
-              return true;
-            }
-          }
-        }
-      }
-    }
+    return currentURL.includes("/jobs/");
   }
   else if (source == "dice") {
     const element = document.getElementById("__NEXT_DATA__");
@@ -2097,6 +2076,180 @@ function traverseAndPrint(jsonObj) {
     });
   }
   return result;
+}
+
+function getMetaContent(selector) {
+  return document.querySelector(selector)?.getAttribute('content')?.trim() || '';
+}
+
+function cleanText(value) {
+  return (value || '').replace(/\s+/g, ' ').trim();
+}
+
+function cleanWellfoundSummaryValue(value) {
+  return cleanText(value).replace(/^\|\s*/, '').replace(/\s*\+\d+(?=\)?$)/, '');
+}
+
+function formatDateAsYmd(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeDateValue(value) {
+  const text = cleanText(value);
+  if (!text || text === 'Missing') {
+    return '';
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text;
+  }
+
+  const relativeMatch = text.match(/^(\d+)\s+(day|week|month|year)s?\s+ago$/i);
+  if (relativeMatch) {
+    const amount = parseInt(relativeMatch[1], 10);
+    const unit = relativeMatch[2].toLowerCase();
+    const date = new Date();
+
+    if (unit === 'day') {
+      date.setDate(date.getDate() - amount);
+    } else if (unit === 'week') {
+      date.setDate(date.getDate() - (amount * 7));
+    } else if (unit === 'month') {
+      date.setMonth(date.getMonth() - amount);
+    } else if (unit === 'year') {
+      date.setFullYear(date.getFullYear() - amount);
+    }
+
+    return formatDateAsYmd(date);
+  }
+
+  if (/^today$/i.test(text)) {
+    return formatDateAsYmd(new Date());
+  }
+
+  if (/^yesterday$/i.test(text)) {
+    const date = new Date();
+    date.setDate(date.getDate() - 1);
+    return formatDateAsYmd(date);
+  }
+
+  const parsedDate = new Date(text);
+  return formatDateAsYmd(parsedDate);
+}
+
+function absolutizeUrl(value) {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    return new URL(value, window.location.origin).href;
+  } catch (error) {
+    return value;
+  }
+}
+
+function mergeMissingJobInfo(jobInfo, fallbackJobInfo) {
+  const mergedJobInfo = { ...(fallbackJobInfo || {}) };
+
+  Object.entries(jobInfo || {}).forEach(([key, value]) => {
+    if (value) {
+      mergedJobInfo[key] = value;
+    }
+  });
+
+  if (mergedJobInfo.title && mergedJobInfo.company) {
+    const companySuffix = new RegExp(`,\\s*${mergedJobInfo.company.replace(/[.*+\-?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    mergedJobInfo.title = mergedJobInfo.title.replace(companySuffix, '').trim();
+  }
+
+  ['datePosted', 'validThrough'].forEach((field) => {
+    if (mergedJobInfo[field]) {
+      const normalizedDate = normalizeDateValue(mergedJobInfo[field]);
+      if (normalizedDate) {
+        mergedJobInfo[field] = normalizedDate;
+      } else {
+        delete mergedJobInfo[field];
+      }
+    }
+  });
+
+  return mergedJobInfo;
+}
+
+function extractWellfoundJobInfoFromDom() {
+  const jobInfo = {};
+  const root = document.querySelector('[data-test="JobListing"]') || document.body;
+  const titleElement = root.querySelector('h1');
+  const metaTitle = getMetaContent('meta[property="og:title"]') || document.title;
+
+  jobInfo.link = getMetaContent('meta[property="og:url"]')
+    || document.querySelector('link[rel="canonical"]')?.href
+    || window.location.href.split("?")[0];
+
+  if (titleElement) {
+    jobInfo.title = cleanText(titleElement.textContent);
+  } else if (metaTitle) {
+    jobInfo.title = cleanText(metaTitle.split(' at ')[0]);
+  }
+
+  const companyElement = root.querySelector('a[href^="/company/"] span, [data-testid="startup-header"] h3, a[href^="/company/"] h3');
+  if (companyElement) {
+    jobInfo.company = cleanText(companyElement.textContent);
+  } else {
+    const companyMatch = metaTitle.match(/\bat\s+(.+?)(?:\s+•|\s+\||$)/);
+    if (companyMatch) {
+      jobInfo.company = cleanText(companyMatch[1]);
+    }
+  }
+
+  const descriptionElement = document.getElementById('job-description');
+  if (descriptionElement) {
+    jobInfo.description = descriptionElement.innerHTML.trim();
+  } else {
+    jobInfo.description = getMetaContent('meta[property="og:description"]') || getMetaContent('meta[name="description"]');
+  }
+
+  const externalWebsiteLink = descriptionElement?.querySelector('a[href^="http"]:not([href*="wellfound.com"])');
+  if (externalWebsiteLink) {
+    jobInfo.website = externalWebsiteLink.href;
+  }
+
+  const logoElement = root.querySelector('img[alt*="Avatar for"], img[alt*="company logo"]');
+  if (logoElement) {
+    jobInfo.companyLogo = absolutizeUrl(logoElement.getAttribute('src'));
+  }
+
+  const summaryText = Array.from(root.querySelectorAll('h1 + ul li, h1 ~ ul li'))
+    .map((item) => cleanText(item.textContent))
+    .filter(Boolean);
+  const salary = summaryText.find((item) => /\$\d/.test(item));
+  if (salary) {
+    jobInfo.salaryRange = cleanWellfoundSummaryValue(salary);
+  }
+  const location = summaryText.find((item) => /remote|hybrid|on.?site|new york|united states|canada/i.test(item) && !/\$\d/.test(item));
+  if (location) {
+    jobInfo.location = cleanWellfoundSummaryValue(location);
+  }
+  const experience = summaryText.find((item) => /\bexp\b|experience/i.test(item));
+  if (experience) {
+    jobInfo.experienceRequirements = cleanWellfoundSummaryValue(experience);
+  }
+  const employmentType = summaryText.find((item) => /full time|part time|contract|intern/i.test(item));
+  if (employmentType) {
+    jobInfo.employmentType = cleanWellfoundSummaryValue(employmentType);
+  }
+
+  const postedText = cleanText(root.textContent).match(/Posted:\s*([^A-Z]+?)(?:Hires remotely|Remote Work Policy|Company Location|Visa Sponsorship|Relocation|Skills|About the job|$)/);
+  if (postedText) {
+    jobInfo.datePosted = normalizeDateValue(postedText[1]);
+  }
+
+  return jobInfo;
 }
 
 function extractPythonCodingJobsJobInfo() {
@@ -2255,6 +2408,7 @@ function extractDiceJobInfo() {
 }
 
 function extractWellfoundJobInfo() {
+  const fallbackJobInfo = extractWellfoundJobInfoFromDom();
   const json_data = document.getElementById("__NEXT_DATA__").textContent;
   const jsonObj = JSON.parse(json_data);
   returned_data = traverseAndPrint(jsonObj);
@@ -2372,12 +2526,13 @@ function extractWellfoundJobInfo() {
     }
   }
 
-  return jobInfo;
+  return mergeMissingJobInfo(jobInfo, fallbackJobInfo);
 }
 
 
 
 function extractWellfoundJobInfoNew() {
+  const fallbackJobInfo = extractWellfoundJobInfoFromDom();
   const jobInfo = {};
   const scripts = Array.from(document.getElementsByTagName('script'));
 
@@ -2396,7 +2551,7 @@ function extractWellfoundJobInfoNew() {
       return Number.isNaN(parsedDate.getTime()) ? '' : parsedDate.toISOString().slice(0, 10);
     };
     jobInfo.title = jobData.title;
-    jobInfo.company = jobData.hiringOrganization.name;
+    jobInfo.company = jobData.hiringOrganization?.name || '';
     jobInfo.description = jobData.description;
     jobInfo.datePosted = formatDate(jobData.datePosted);
     jobInfo.validThrough = formatDate(jobData.validThrough);
@@ -2410,18 +2565,18 @@ function extractWellfoundJobInfoNew() {
       }
     }
     jobInfo.experienceRequirements = jobData.experienceRequirements;
-    jobInfo.website = jobData.hiringOrganization.sameAs;
+    jobInfo.website = jobData.hiringOrganization?.sameAs || jobData.hiringOrganization?.url || '';
     if (jobData.baseSalary) {
       jobInfo.salaryRange = `$${jobData.baseSalary.value.minValue} - $${jobData.baseSalary.value.maxValue}`;
     }
     jobInfo.perks = jobData.jobBenefits;
     jobInfo.industry = jobData.industry;
-    jobInfo.logo = jobData.hiringOrganization.logo;
+    jobInfo.logo = jobData.hiringOrganization?.logo || '';
     jobInfo.image = jobData.image;
     jobInfo.directApply = jobData.directApply;
   }
 
-  return jobInfo;
+  return mergeMissingJobInfo(jobInfo, fallbackJobInfo);
 }
 
 
@@ -2590,6 +2745,283 @@ function extractGenericJobInfo() {
   return jobInfo;
 }
 
+function withMissingJobInfoFields(jobInfo, fields) {
+  const normalizedJobInfo = { ...(jobInfo || {}) };
+
+  fields.forEach((field) => {
+    if (!normalizedJobInfo[field]) {
+      normalizedJobInfo[field] = 'Missing';
+    }
+  });
+
+  return normalizedJobInfo;
+}
+
+function isValidHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch (error) {
+    return false;
+  }
+}
+
+function normalizeDomain(value) {
+  return (value || '').toLowerCase().replace(/^www\./, '').trim();
+}
+
+function getEmailDomain(email) {
+  const parts = (email || '').trim().split('@');
+  return parts.length === 2 ? normalizeDomain(parts[1]) : '';
+}
+
+function getWebsiteDomain(website) {
+  try {
+    return normalizeDomain(new URL(website).hostname);
+  } catch (error) {
+    return '';
+  }
+}
+
+function domainsMatch(candidateDomain, websiteDomain) {
+  if (!candidateDomain || !websiteDomain) {
+    return false;
+  }
+
+  return candidateDomain === websiteDomain
+    || candidateDomain.endsWith(`.${websiteDomain}`)
+    || websiteDomain.endsWith(`.${candidateDomain}`);
+}
+
+function getApplyJobInfoForEmail(jobInfo, email) {
+  const applyJobInfo = { ...(jobInfo || {}) };
+  const emailDomain = getEmailDomain(email);
+
+  if (!getWebsiteDomain(applyJobInfo.website) && emailDomain && (applyJobInfo.company || applyJobInfo.link || applyJobInfo.title)) {
+    applyJobInfo.website = `https://${emailDomain}`;
+  }
+
+  return applyJobInfo;
+}
+
+function isCurrentPageJobPost() {
+  return /\/jobs?\//i.test(window.location.pathname)
+    || window.location.hostname.includes('wellfound.com')
+    || Boolean(document.querySelector('script[type="application/ld+json"]'));
+}
+
+function getCurrentApplyJobInfo() {
+  let jobInfo = { ...(window.pingojoCurrentJobInfo || {}) };
+
+  if ((!jobInfo.company || !jobInfo.title || !jobInfo.link) && window.location.hostname.includes('wellfound.com')) {
+    try {
+      jobInfo = mergeMissingJobInfo(jobInfo, extractWellfoundJobInfoFromDom());
+    } catch (error) {
+    }
+  }
+
+  if (!jobInfo.link && isCurrentPageJobPost()) {
+    jobInfo.link = window.location.href.split("?")[0];
+  }
+
+  if (!jobInfo.company) {
+    jobInfo.company = localStorage.getItem('company') || '';
+  }
+  if (!jobInfo.title) {
+    jobInfo.title = localStorage.getItem('title') || '';
+  }
+  if (!jobInfo.website) {
+    jobInfo.website = localStorage.getItem('website') || '';
+  }
+
+  return jobInfo;
+}
+
+function normalizeStoredJobInfo(value) {
+  return {
+    company: value.company || value.company_name || '',
+    title: value.title || value.role_title || value.job_role || value.role_name || '',
+    link: value.link || value.job_link || value.job_url || '',
+    website: value.website || value.company_website || '',
+    companyEmail: value.companyEmail || value.company_email || value.email || value.to_email || ''
+  };
+}
+
+function storedJobLooksRelated(candidate, currentJobInfo) {
+  if (!candidate || !currentJobInfo) {
+    return false;
+  }
+
+  const candidateCompany = normalizeDomain(candidate.company);
+  const currentCompany = normalizeDomain(currentJobInfo.company);
+  const candidateLink = candidate.link || '';
+  const currentLink = currentJobInfo.link || '';
+
+  return Boolean(
+    (candidateCompany && currentCompany && candidateCompany === currentCompany)
+    || (candidateLink && currentLink && candidateLink === currentLink)
+  );
+}
+
+function findLocalApplyJobInfo(email, currentJobInfo, callback) {
+  const emailDomain = getEmailDomain(email);
+  const candidates = [normalizeStoredJobInfo(currentJobInfo)];
+
+  chrome.storage.sync.get(['last_job_viewed', 'recent_company', 'recent_role'], (syncData) => {
+    candidates.push(normalizeStoredJobInfo(syncData.last_job_viewed || {}));
+    if (syncData.recent_company || syncData.recent_role) {
+      candidates.push(normalizeStoredJobInfo({
+        company: syncData.recent_company || '',
+        title: syncData.recent_role || ''
+      }));
+    }
+
+    chrome.storage.local.get('applications', ({ applications }) => {
+      (applications || []).forEach((application) => {
+        candidates.push(normalizeStoredJobInfo(application));
+      });
+
+      const relatedCandidate = candidates.find((candidate) => {
+        const websiteDomain = getWebsiteDomain(candidate.website);
+        return domainsMatch(emailDomain, websiteDomain) && storedJobLooksRelated(candidate, currentJobInfo);
+      });
+
+      if (relatedCandidate) {
+        callback(getApplyJobInfoForEmail({ ...currentJobInfo, ...relatedCandidate }, email));
+        return;
+      }
+
+      const emailCandidate = candidates.find((candidate) => {
+        const candidateEmailDomain = getEmailDomain(candidate.companyEmail);
+        return domainsMatch(emailDomain, candidateEmailDomain) && storedJobLooksRelated(candidate, currentJobInfo);
+      });
+
+      if (emailCandidate) {
+        callback(getApplyJobInfoForEmail({ ...currentJobInfo, ...emailCandidate, website: `https://${emailDomain}` }, email));
+        return;
+      }
+
+      const pageJobInfo = getApplyJobInfoForEmail(currentJobInfo, email);
+      if (isCurrentPageJobPost() && domainsMatch(emailDomain, getWebsiteDomain(pageJobInfo.website))) {
+        callback(pageJobInfo);
+        return;
+      }
+
+      callback(null);
+    });
+  });
+}
+
+function fetchBackendApplyJobInfo(baseUrl, email, currentJobInfo, callback) {
+  const companyName = currentJobInfo.company || '';
+  const jobUrl = currentJobInfo.link || '';
+
+  if (!companyName && !jobUrl) {
+    callback(null);
+    return;
+  }
+
+  let endpoint;
+  try {
+    endpoint = new URL('/api/get_company_email/', baseUrl || 'https://www.pingojo.com');
+  } catch (error) {
+    endpoint = new URL('/api/get_company_email/', 'https://www.pingojo.com');
+  }
+
+  if (companyName) {
+    endpoint.searchParams.set('company_name', companyName);
+  }
+  if (jobUrl) {
+    endpoint.searchParams.set('job_url', jobUrl);
+  }
+
+  fetch(endpoint.href, { credentials: 'include' })
+    .then((response) => response.ok ? response.json() : null)
+    .then((data) => {
+      if (!data) {
+        callback(null);
+        return;
+      }
+
+      const emailDomain = getEmailDomain(email);
+      const backendWebsite = data.website || data.company_website || '';
+      const backendEmail = data.email || data.company_email || '';
+      const websiteDomain = getWebsiteDomain(backendWebsite);
+      const backendEmailDomain = getEmailDomain(backendEmail);
+
+      if (domainsMatch(emailDomain, websiteDomain) || domainsMatch(emailDomain, backendEmailDomain)) {
+        callback(getApplyJobInfoForEmail({
+          ...currentJobInfo,
+          company: currentJobInfo.company || data.company_name || '',
+          title: currentJobInfo.title || data.job_title || '',
+          link: currentJobInfo.link || data.job_url || '',
+          website: backendWebsite || `https://${emailDomain}`
+        }, email));
+        return;
+      }
+
+      callback(null);
+    })
+    .catch(() => {
+      callback(null);
+    });
+}
+
+function addApplyLinkIfEligible(li, email, baseUrl) {
+  const currentJobInfo = getCurrentApplyJobInfo();
+  const addApplyLink = (applyJobInfo) => {
+    if (!applyJobInfo || li.querySelector('.pingojo-apply-link')) {
+      return;
+    }
+
+    const spacer = document.createTextNode(" ");
+    li.appendChild(spacer);
+
+    const applyLink = document.createElement("a");
+    applyLink.className = "pingojo-apply-link";
+    applyLink.href = buildPingojoApplyUrl(baseUrl, email, applyJobInfo);
+    applyLink.target = "_blank";
+    applyLink.textContent = "Apply";
+    li.appendChild(applyLink);
+  };
+
+  findLocalApplyJobInfo(email, currentJobInfo, (localApplyJobInfo) => {
+    if (localApplyJobInfo) {
+      addApplyLink(localApplyJobInfo);
+      return;
+    }
+
+    fetchBackendApplyJobInfo(baseUrl, email, currentJobInfo, addApplyLink);
+  });
+}
+
+function buildPingojoApplyUrl(baseUrl, email, jobInfo) {
+  let applyUrl;
+  try {
+    applyUrl = new URL('/apply/', baseUrl || 'https://www.pingojo.com');
+  } catch (error) {
+    applyUrl = new URL('/apply/', 'https://www.pingojo.com');
+  }
+  applyUrl.searchParams.set('email', email);
+  applyUrl.searchParams.set('source', 'extension_email_finder');
+  applyUrl.searchParams.set('create_cover_letter', '1');
+
+  if (jobInfo.link) {
+    applyUrl.searchParams.set('job_url', jobInfo.link);
+  }
+  if (jobInfo.company) {
+    applyUrl.searchParams.set('company_name', jobInfo.company);
+  }
+  if (jobInfo.title) {
+    applyUrl.searchParams.set('job_title', jobInfo.title);
+  }
+  if (jobInfo.website) {
+    applyUrl.searchParams.set('website', jobInfo.website);
+  }
+
+  return applyUrl.href;
+}
+
 function extractYCombinatorJobInfo() {
   const jobInfo = {};
   const scripts = Array.from(document.getElementsByTagName('script'));
@@ -2600,7 +3032,6 @@ function extractYCombinatorJobInfo() {
 
   if (jsonLdScript) {
     const jobData = JSON.parse(jsonLdScript.innerHTML);
-    console.log(jobData);
 
     jobInfo.title = jobData.title || '';
     jobInfo.company = jobData.hiringOrganization?.name || '';
@@ -2630,7 +3061,6 @@ function extractYCombinatorJobInfo() {
       }
     }
   }
-  console.log(jobInfo);
   return jobInfo;
 }
 
@@ -2685,7 +3115,6 @@ function extractGreenhouseJobInfo() {
       const jsonString = scriptTag.textContent.substring(jsonStart, jsonEnd + 1);
       const data = JSON.parse(jsonString);
 
-      console.log("Parsed JSON Data:", data);  // Log the full JSON data to inspect its structure
 
       const loaderData = data.state.loaderData;
 
@@ -2708,9 +3137,7 @@ function extractGreenhouseJobInfo() {
         jobInfo.publicUrl = jobPost.public_url;
         jobInfo.confirmationMessage = jobPost.confirmation_message;
 
-        console.log("Company Name extracted:", jobInfo.company);  // Log to confirm company name
       } else {
-        console.error("Job post data not found in the JSON object.");
       }
       break;
     }
@@ -2728,7 +3155,6 @@ function extractGreenhouseJobInfo() {
     if (companyNameElement) {
       jobInfo.company = companyNameElement.textContent.trim().substring(3);
     } else {
-      console.error("Company name not found in the HTML elements.");
     }
   }
 
@@ -2751,7 +3177,6 @@ function extractGreenhouseJobInfo() {
     jobInfo.website = logoElement.href;
   }
 
-  console.log("Extracted Job Info:", jobInfo);  // Final log to output the extracted job info
   return jobInfo;
 }
 
@@ -2760,6 +3185,17 @@ async function sendJobInfoToBackend(jobInfo) {
   if (!jobInfo.link) {
     jobInfo.link = window.location.href.split("?")[0];
   }
+
+  ['datePosted', 'validThrough'].forEach((field) => {
+    if (jobInfo[field]) {
+      const normalizedDate = normalizeDateValue(jobInfo[field]);
+      if (normalizedDate) {
+        jobInfo[field] = normalizedDate;
+      } else {
+        delete jobInfo[field];
+      }
+    }
+  });
 
   // Check if the current page content indicates a 410 status
   if (document.title.includes("410") || document.body.textContent.includes("is no longer available")) {
@@ -2779,7 +3215,7 @@ async function sendJobInfoToBackend(jobInfo) {
           url: base_url
         }, (csrfToken) => {
           if (csrfToken) {
-            headers = {
+            const headers = {
               'Content-Type': 'application/json',
               'Cookie': `sessionid=${sessionCookie.value}`,
               'X-CSRFToken': csrfToken,
@@ -2790,16 +3226,16 @@ async function sendJobInfoToBackend(jobInfo) {
               headers: headers,
               body: JSON.stringify(jobInfo),
             })
-              .then(response => {
+              .then(async response => {
                 if (!response.ok) {
-                  alert('Network response was not ok 5' + JSON.stringify(response) + JSON.stringify(response.status));
-                  throw new Error('Network response was not ok 6', JSON.stringify(response) + JSON.stringify(response.status));
+                  const responseText = await response.text().catch(() => '');
+                  throw new Error(`Network response was not ok (${response.status}) ${responseText}`);
                 }
                 return response.json();
-              }).catch(error => {
-                jobInfo.description = "removed jd";
-                alert('sendJobInfoToBackend There was a problem with the fetch operation it may be a cors issue -- :' + error + JSON.stringify(jobInfo));
               }).then(data => {
+                if (!data || !data.job_url) {
+                  throw new Error(`Backend response missing job_url: ${JSON.stringify(data)}`);
+                }
                 job_url = data.job_url;
                 if (document.getElementById('pingojo_link_id')) {
                   document.getElementById('pingojo_link_id').href = job_url;
@@ -2811,10 +3247,12 @@ async function sendJobInfoToBackend(jobInfo) {
                   document.getElementById('pingojo_search_company_id').title = "Search " + jobInfo.company + " on Pingojo";
                   document.getElementById('pingojo_search_company_id').style.display = "block";
                 }
+                if (data.website || data.company_website) {
+                  jobInfo.website = data.website || data.company_website;
+                  window.pingojoCurrentJobInfo = { ...(window.pingojoCurrentJobInfo || {}), website: jobInfo.website };
+                }
               })
               .catch(error => {
-                jobInfo.description = "removed jd";
-                alert('There was a problem with the data operation -- :' + JSON.stringify(error) + JSON.stringify(jobInfo));
               });
           } else {
             window.location = base_url + '/accounts/login/?from=gmail';
@@ -2905,11 +3343,15 @@ async function createOverlay(jobsite) {
   var jobInfo = {};
 
   if (jobsite === "wellfound") {
-    const element = document.getElementById("__NEXT_DATA__");
-    if (element !== null) {
-      jobInfo = extractWellfoundJobInfo();
-    } else {
-      jobInfo = extractWellfoundJobInfoNew();
+    try {
+      const element = document.getElementById("__NEXT_DATA__");
+      if (element !== null) {
+        jobInfo = extractWellfoundJobInfo();
+      } else {
+        jobInfo = extractWellfoundJobInfoNew();
+      }
+    } catch (error) {
+      jobInfo = extractWellfoundJobInfoFromDom();
     }
   } else if (jobsite === "greenhouse") {
     jobInfo = extractGreenhouseJobInfo();
@@ -2929,12 +3371,27 @@ async function createOverlay(jobsite) {
     jobInfo = extractGenericJobInfo();
   }
 
+  const displayJobInfo = jobsite === "wellfound"
+    ? withMissingJobInfoFields(jobInfo, [
+      'title',
+      'company',
+      'website',
+      'datePosted',
+      'description',
+      'location',
+      'employmentType'
+    ])
+    : jobInfo;
+  window.pingojoCurrentJobInfo = jobInfo;
+
   // Persist last viewed job details for popup autofill
   try {
     const lastViewed = {
       company_name: jobInfo.company || '',
       role_title: jobInfo.title || '',
       job_role: jobInfo.title || '',
+      website: jobInfo.website || '',
+      job_url: jobInfo.link || '',
       email: ''
     };
     chrome.storage.sync.set({ last_job_viewed: lastViewed });
@@ -3121,22 +3578,22 @@ async function createOverlay(jobsite) {
 
   form.appendChild(container);
 
-  for (const key in jobInfo) {
+  for (const key in displayJobInfo) {
     const label = document.createElement("label");
     label.htmlFor = `job-data-extractor-${key}`;
     label.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)}:`;
     form.appendChild(label);
 
-    if (key === "website") {
+    if (key === "website" && isValidHttpUrl(displayJobInfo[key])) {
       const anchor = document.createElement("a");
-      anchor.href = jobInfo[key];
+      anchor.href = displayJobInfo[key];
       anchor.target = "_blank";
-      anchor.textContent = jobInfo[key];
+      anchor.textContent = displayJobInfo[key];
       anchor.style.display = "block";
       anchor.style.marginBottom = "10px";
 
       const favicon = document.createElement("img");
-      favicon.src = `https://www.google.com/s2/favicons?domain=${jobInfo[key]}`;
+      favicon.src = `https://www.google.com/s2/favicons?domain=${displayJobInfo[key]}`;
       favicon.style.marginRight = "5px";
 
       anchor.insertBefore(favicon, anchor.firstChild);
@@ -3146,7 +3603,7 @@ async function createOverlay(jobsite) {
       const input = document.createElement("input");
       input.id = `job-data-extractor-${key}`;
       input.type = "text";
-      input.value = jobInfo[key];
+      input.value = displayJobInfo[key];
       input.style.width = "100%";
       input.style.marginBottom = "10px";
       form.appendChild(input);
@@ -3172,11 +3629,12 @@ async function createOverlay(jobsite) {
   const emailsfound = document.createElement("div");
   let updatedEmails = []
 
-  chrome.storage.sync.get("email_address", ({ email_address }) => {
+  chrome.storage.sync.get(["email_address", "base_url"], ({ email_address, base_url }) => {
     if (email_address) {
       updatedEmails = emails.filter(email => email !== email_address);
       if (updatedEmails.length > 0) {
         String(updatedEmails).split(',').forEach(email => {
+          const trimmedEmail = email.trim();
           const emailLink = document.createElement('a');
           emailLink.classList.add('emaillink');
           // emailLink.href = `https://mail.google.com/mail/u/0/?view=cm&fs=1&to=${email.trim()}&tf=1`;
@@ -3185,19 +3643,19 @@ async function createOverlay(jobsite) {
           //navigator.clipboard.writeText(email.trim());
           emailLink.href = `https://mail.google.com/mail/u/0/#inbox?compose=new`;
           emailLink.target = '_blank';
-          emailLink.textContent = email;
+          emailLink.textContent = trimmedEmail;
 
           const spacer = document.createTextNode(" ");
           const addLink = document.createElement('a');
-          addLink.href = `https://pingojo.com/add_email/?email=${email.trim()}`;
+          addLink.href = `https://pingojo.com/add_email/?email=${trimmedEmail}`;
           addLink.target = '_blank';
           addLink.textContent = "+";
 
           const lineBreak = document.createElement('br');
-
           emailsfound.appendChild(emailLink);
           emailsfound.appendChild(spacer);
           emailsfound.appendChild(addLink);
+          addApplyLinkIfEligible(emailsfound, trimmedEmail, base_url);
           emailsfound.appendChild(lineBreak);
 
           emailsfound.style.width = "100%";
@@ -3346,7 +3804,6 @@ async function handleFollowUpButtonClick(application) {
     const fullName = localStorage.getItem('full_name');
     openGmailComposeWithEmail(application.company_name, email, application.job_role, fullName);
   } catch (error) {
-    console.error('Error fetching email address:', error);
   }
 }
 
@@ -3423,7 +3880,7 @@ if (!excludedDomains.some(domain => window.location.href.includes(domain))) {
     // Email list
     const emailList = document.createElement("ul");
     emailList.style.listStyleType = "none";
-    chrome.storage.sync.get("email_address", ({ email_address }) => {
+    chrome.storage.sync.get(["email_address", "base_url"], ({ email_address, base_url }) => {
 
       emails.forEach(email => {
         if (!excludedDomains.some(domain => email.includes(domain)) && !email.includes(email_address)) {
@@ -3456,6 +3913,8 @@ if (!excludedDomains.some(domain => window.location.href.includes(domain))) {
           addLink.target = "_blank";
           addLink.textContent = "+";
           li.appendChild(addLink);
+
+          addApplyLinkIfEligible(li, email, base_url);
 
           emailList.appendChild(li);
         }

@@ -1,9 +1,7 @@
-console.log('storage.js loaded');
 
 document.addEventListener('DOMContentLoaded', function () {
     chrome.storage.local.get(['applications'], function (result) {
         let applications = result.applications;
-        console.log('applications', applications);
         // also set the count
         if (applications && Array.isArray(applications)) {
             document.getElementById('count').innerText = applications.length;
