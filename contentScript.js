@@ -1,11 +1,11 @@
 const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336']; // green, blue, orange, and red
 const excludedDomains = ["pingojo.com", "google.com", "127.0.0.1", "chatgpt.com"];
 
-let troubleshooterEnabled = true;
+let troubleshooterEnabled = false;
 
 function loadTroubleshooterPreference() {
-  chrome.storage.sync.get({ show_troubleshooter: true }, ({ show_troubleshooter }) => {
-    troubleshooterEnabled = show_troubleshooter !== false;
+  chrome.storage.sync.get({ show_troubleshooter: false }, ({ show_troubleshooter }) => {
+    troubleshooterEnabled = show_troubleshooter === true;
     if (!troubleshooterEnabled) {
       const existingBox = document.getElementById('pingojo-troubleshooting-box');
       if (existingBox) existingBox.remove();
@@ -17,104 +17,13 @@ loadTroubleshooterPreference();
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'sync' && changes.show_troubleshooter) {
-    troubleshooterEnabled = changes.show_troubleshooter.newValue !== false;
+    troubleshooterEnabled = changes.show_troubleshooter.newValue === true;
     if (!troubleshooterEnabled) {
       const existingBox = document.getElementById('pingojo-troubleshooting-box');
       if (existingBox) existingBox.remove();
     }
   }
 });
-
-
-// // CSS styles for the floating tab and sliding panel
-// const tabstyle = document.createElement('style');
-// tabstyle.textContent = `
-//   #pingojo-tab {
-//     position: fixed;
-//     top: 50%;
-//     right: 0;
-//     transform: translateY(-50%);
-//     width: 40px;
-//     height: 40px;
-//     background-color: #ffffff; 
-//     border-radius: 5px 0 0 5px;
-//     cursor: pointer;
-//     display: flex;
-//     justify-content: center;
-//     align-items: center;
-//     z-index: 1000;
-//     border: 1px solid #ccc;
-//   }
-
-//   #pingojo-tab img {
-//     width: 30px;
-//     height: 30px;
-//   }
-
-//   #pingojo-panel {
-//     position: fixed;
-//     top: 50%;
-//     right: -150px; /* Hidden initially */
-//     transform: translateY(-50%);
-//     width: 150px;
-//     background-color: #f9f9f9;
-//     box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-//     border-radius: 5px 0 0 5px;
-//     transition: right 0.3s ease;
-//     padding: 10px;
-//     z-index: 1000;
-//   }
-
-//   #pingojo-panel a {
-//     display: block;
-//     margin-bottom: 10px;
-//     text-decoration: none;
-//     color: #000;
-//     font-weight: bold;
-//   }
-
-//   #pingojo-panel .emoji {
-//     margin-right: 10px;
-//   }
-
-//   #pingojo-panel.active {
-//     right: 0; /* Slide out */
-//   }
-// `;
-// document.head.appendChild(tabstyle);
-
-// // Create the floating tab for Pingojo logo
-// const pingojoTab = document.createElement('div');
-// pingojoTab.id = 'pingojo-tab';
-// const pingojoLogo = chrome.runtime.getURL('pingojo-logo.svg'); // Replace with correct path to Pingojo logo SVG
-// pingojoTab.innerHTML = `<img src="${pingojoLogo}" alt="Pingojo">`;
-// document.body.appendChild(pingojoTab);
-
-// // Create the sliding panel
-// const pingojoPanel = document.createElement('div');
-// pingojoPanel.id = 'pingojo-panel';
-// pingojoPanel.innerHTML = `
-//   <a href="#" id="add-job"><span class="emoji">➕</span> Add Job</a>
-//   <a href="#" id="view-emails"><span class="emoji">📧</span> View Emails</a>
-// `;
-// document.body.appendChild(pingojoPanel);
-
-// // Event listeners for tab click to slide out the panel
-// pingojoTab.addEventListener('click', () => {
-//   pingojoPanel.classList.toggle('active');
-// });
-
-// // Event listeners for the buttons (you can add functionality here)
-// document.getElementById('add-job').addEventListener('click', () => {
-//   alert('Add Job clicked!');
-//   // Add your logic for adding a job
-// });
-
-// document.getElementById('view-emails').addEventListener('click', () => {
-//   alert('View Emails clicked!');
-//   // Add your logic for viewing emails
-// });
-
 
 
 const waitForViewMessageLink = setInterval(() => {
@@ -674,10 +583,16 @@ function sendDataToDRF(stage, domain, nameEmail, companyName, datetime, fromAddr
                   chrome.storage.local.get("applications", (data2) => {
                     let applications = data2.applications || [];
 
-                    chrome.storage.local.set({ application_count: data2.applications.length });
+                    chrome.storage.local.set({ application_count: applications.length });
                     chrome.storage.local.set({ last_update: new Date().getTime() });
 
-                    applications.push(payload);
+                    applications.push({
+                      ...payload,
+                      company_email: inputCompanyEmail,
+                      email: inputCompanyEmail,
+                      job_role: roleName,
+                      role_name: roleName,
+                    });
 
                     chrome.storage.local.set({ applications }, () => {
                     });
@@ -756,7 +671,7 @@ function sendDetailInfoToDRF(stage) {
         var gmailId = gmailIdMatch ? gmailIdMatch[1] : null;
         const cleanedDatetime = datetime.replace(/\u202F/g, ' ');
 
-        sendDataToDRF(stage, nameEmail, domain, companyName, cleanedDatetime, fromAddress, gmailId, roleName, CompanyEmail)
+        sendDataToDRF(stage, domain, nameEmail, companyName, cleanedDatetime, fromAddress, gmailId, roleName, CompanyEmail)
           .then((data) => {
             resolve(data);
           })
@@ -786,6 +701,7 @@ function rgbToHex(rgb) {
 
 async function autoSubmitAppliedButton() {
   const emailContainer = getActiveEmailContainer();
+  const threadState = getActiveThreadState();
 
   if (emailContainer) {
     const emailMetaInfo = getEmailMetaInfo(emailContainer);
@@ -817,6 +733,12 @@ async function autoSubmitAppliedButton() {
                 found = companyNames.includes(companyName);
 
                 if (!found && companyName !== '') {
+                  if (threadState && autoSubmittedThreadKeys.has(threadState.key)) {
+                    return;
+                  }
+                  if (threadState) {
+                    autoSubmittedThreadKeys.add(threadState.key);
+                  }
                   appliedButton.click();
                   found = true;
                 }
@@ -920,9 +842,11 @@ function createDetailButton(label, spinner, checkmark) {
   });
 
   button.onclick = function () {
+    pauseToolbarRenders();
     spinner.style.display = 'block';
     sendDetailInfoToDRF(label)
       .then(() => {
+        pauseToolbarRenders();
         spinner.style.display = 'none';
         checkmark.style.display = 'block';
 
@@ -1034,6 +958,7 @@ function createDetailButton(label, spinner, checkmark) {
         }
       })
       .catch((error) => {
+        stageSaveInProgressUntil = 0;
         spinner.style.display = 'none';
         alert('Failed to send data');
       });
@@ -1203,6 +1128,70 @@ function getEmailMetaInfo(container) {
     return null;
   }
   return container.querySelector('.gE.iv.gt') || container.querySelector('.gE.iv') || container.querySelector('.gE');
+}
+
+function getMessageIdFromContainer(container) {
+  if (!container) {
+    return '';
+  }
+  return container.getAttribute('data-legacy-message-id') || container.getAttribute('data-message-id') || '';
+}
+
+function getGmailIdFromUrl(url) {
+  const match = (url || window.location.href).match(/\/([a-zA-Z0-9]+)\/?$/);
+  return match ? match[1] : '';
+}
+
+function getActiveThreadState() {
+  const emailContainer = getActiveEmailContainer();
+  const subjectElement = document.querySelector('h2[data-thread-perm-id]') || document.querySelector('h2.hP');
+  const emailMetaInfo = getEmailMetaInfo(emailContainer);
+
+  if (!emailContainer || !subjectElement || !emailMetaInfo) {
+    return null;
+  }
+
+  const messageId = getMessageIdFromContainer(emailContainer);
+  const urlId = getGmailIdFromUrl();
+  const subject = subjectElement.textContent.trim();
+  const threadId = urlId || messageId;
+  const key = [threadId, subject].filter(Boolean).join('|');
+
+  if (!key) {
+    return null;
+  }
+
+  return {
+    emailContainer,
+    subjectElement,
+    gmailId: threadId,
+    key
+  };
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function waitForStableActiveThread(timeout = 1800, stableDelay = 180) {
+  const startedAt = Date.now();
+  let previousKey = '';
+
+  while (Date.now() - startedAt < timeout) {
+    const state = getActiveThreadState();
+    if (state && state.key === previousKey) {
+      await delay(stableDelay);
+      const confirmedState = getActiveThreadState();
+      if (confirmedState && confirmedState.key === state.key) {
+        return confirmedState;
+      }
+    }
+
+    previousKey = state ? state.key : '';
+    await delay(80);
+  }
+
+  return getActiveThreadState();
 }
 
 document.addEventListener('click', () => {
@@ -1393,25 +1382,53 @@ function debounce(func, wait) {
 }
 
 const debouncedAddButtonAndInput = debounce(addButtonAndInput, 500);
+let toolbarRenderRequest = 0;
+let stageSaveInProgressUntil = 0;
+const autoSubmittedThreadKeys = new Set();
+
+function isStageSaveInProgress() {
+  return Date.now() < stageSaveInProgressUntil;
+}
+
+function pauseToolbarRenders(ms = 2600) {
+  stageSaveInProgressUntil = Math.max(stageSaveInProgressUntil, Date.now() + ms);
+}
 
 function addButtonAndInput() {
   const addToolbar = async () => {
-    const emailContainer = getActiveEmailContainer();
-    const subjectElement = document.querySelector('h2[data-thread-perm-id]') || document.querySelector('h2.hP');
-    const existingToolbar = document.querySelector('#company_toolbar');
-
-    if (existingToolbar) {
-      existingToolbar.remove();
+    if (isStageSaveInProgress()) {
+      return;
     }
+
+    const renderRequest = ++toolbarRenderRequest;
+    const threadState = await waitForStableActiveThread();
+    if (renderRequest !== toolbarRenderRequest || !threadState || isStageSaveInProgress()) {
+      return;
+    }
+
+    const existingToolbar = document.querySelector('#company_toolbar');
+    if (existingToolbar && existingToolbar.dataset.threadKey === threadState.key) {
+      return;
+    }
+
+    const { emailContainer, subjectElement, gmailId } = threadState;
 
     if (emailContainer && subjectElement) {
       const currentTab = await getCurrentTab();
+      if (renderRequest !== toolbarRenderRequest) {
+        return;
+      }
+
       const toolbar = createToolbar();
+      toolbar.dataset.threadKey = threadState.key;
       const url = currentTab.url;
-      const gmailIdMatch = url.match(/\/([a-zA-Z0-9]+)$/);
-      const gmailId = gmailIdMatch ? gmailIdMatch[1] : null;
+      const currentGmailId = getGmailIdFromUrl(url) || gmailId;
       const applications = await getApplications();
-      const application = applications.find(app => app.gmail_id === gmailId);
+      if (renderRequest !== toolbarRenderRequest || isStageSaveInProgress()) {
+        return;
+      }
+
+      const application = applications.find(app => app.gmail_id === currentGmailId);
 
       if (application) {
         setInputValues(toolbar, application);
@@ -1427,6 +1444,10 @@ function addButtonAndInput() {
         emailContainer.parentNode.insertBefore(toolbar, emailContainer);
       } else {
         return;
+      }
+
+      if (existingToolbar) {
+        existingToolbar.remove();
       }
 
       const toolbarButton = document.createElement('button');
@@ -1541,11 +1562,19 @@ async function getApplications() {
 function setInputValues(toolbar, application) {
   const roleInput = toolbar.querySelector('#role_input_field');
   const companyInput = toolbar.querySelector('#company_input_field');
-  if (application.job_role) {
-    roleInput.value = application.job_role;
+  const emailInput = toolbar.querySelector('#company_email_input_field');
+  const role = application.job_role || application.role_name || application.role_title || '';
+  const email = application.company_email || application.email || application.to_email || '';
+
+  if (role) {
+    roleInput.value = role;
   }
 
   companyInput.value = application.company_name;
+  if (email) {
+    emailInput.value = email;
+  }
+
   const buttonContainer = toolbar.querySelector('.button_container');
   const linkToCrm = createLinkToCrm(companyInput.value);
   buttonContainer.appendChild(linkToCrm);
@@ -1558,6 +1587,10 @@ function setInputValues(toolbar, application) {
 }
 
 function setButtonState(toolbar, application) {
+  if (!application.stage_name) {
+    return;
+  }
+
   const stageButton = toolbar.querySelector(`#${application.stage_name.toLowerCase()}_button`);
 
   if (stageButton) {
@@ -1770,7 +1803,7 @@ function createToolbar() {
   buttonContainer.appendChild(passedButton);
 
   chrome.storage.local.get('applications', function (data) {
-    let applications = data.applications;
+    let applications = data.applications || [];
 
     let companyRolePairs = applications.map(app => [app.company_name, app.job_role, app.stage_name]);
 
@@ -1946,7 +1979,6 @@ function searchElement(element) {
 }
 
 function isJobPosting(source) {
-  console.log("checking if job posting is : " + source);
   if (source === "builtin") {
     const scriptTags = document.getElementsByTagName('script');
     for (const scriptTag of scriptTags) {

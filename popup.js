@@ -130,8 +130,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const forms = document.querySelectorAll("[data-form-key]");
   const displayElements = document.querySelectorAll("[data-display-key]");
 
+  const exportedSettingKeys = [
+    'base_url',
+    'prompt_text',
+    'full_name',
+    'email_address',
+    'resume_url',
+    'show_troubleshooter'
+  ];
+  const exportSettingsButton = document.getElementById('export-settings-btn');
+  const importSettingsButton = document.getElementById('import-settings-btn');
+  const importSettingsFile = document.getElementById('import-settings-file');
+  const settingsTransferStatus = document.getElementById('settings-transfer-status');
   const troubleshooterToggle = document.getElementById('troubleshooter-toggle');
   const troubleshooterStatus = document.getElementById('troubleshooter-status');
+
+  const setSettingsTransferStatus = (message, ok = true) => {
+    if (!settingsTransferStatus) return;
+    settingsTransferStatus.textContent = message;
+    settingsTransferStatus.style.color = ok ? '#0a0' : '#c00';
+  };
 
   const updateTroubleshooterStatus = (enabled) => {
     if (troubleshooterStatus) {
@@ -139,9 +157,106 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const refreshSettingsDisplay = () => {
+    chrome.storage.sync.get(exportedSettingKeys, (data) => {
+      forms.forEach(form => {
+        const storageKey = form.dataset.formKey;
+        if (!exportedSettingKeys.includes(storageKey)) return;
+
+        const input = form.querySelector('input, textarea');
+        const current = Array.from(displayElements).find(
+          el => el.dataset.displayKey === storageKey
+        );
+
+        if (input) input.value = data[storageKey] || '';
+        if (current) current.textContent = data[storageKey] || 'Not set';
+      });
+
+      const enabled = data.show_troubleshooter === true;
+      if (troubleshooterToggle) troubleshooterToggle.checked = enabled;
+      updateTroubleshooterStatus(enabled);
+    });
+  };
+
+  if (exportSettingsButton) {
+    exportSettingsButton.addEventListener('click', () => {
+      chrome.storage.sync.get(exportedSettingKeys, (settings) => {
+        if (chrome.runtime.lastError) {
+          setSettingsTransferStatus('Unable to export settings.', false);
+          return;
+        }
+
+        const payload = {
+          version: 1,
+          settings
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = 'pingojo-settings.json';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+        setSettingsTransferStatus('Settings exported.');
+      });
+    });
+  }
+
+  if (importSettingsButton && importSettingsFile) {
+    importSettingsButton.addEventListener('click', () => importSettingsFile.click());
+
+    importSettingsFile.addEventListener('change', async () => {
+      const [file] = importSettingsFile.files;
+      if (!file) return;
+
+      try {
+        const parsed = JSON.parse(await file.text());
+        const importedSettings = parsed.settings || parsed;
+        if (!importedSettings || typeof importedSettings !== 'object' || Array.isArray(importedSettings)) {
+          throw new Error('Settings JSON must contain an object.');
+        }
+
+        const settingsToSave = {};
+        exportedSettingKeys.forEach(key => {
+          if (!Object.prototype.hasOwnProperty.call(importedSettings, key)) return;
+
+          const value = importedSettings[key];
+          const hasValidType = key === 'show_troubleshooter'
+            ? typeof value === 'boolean'
+            : typeof value === 'string';
+
+          if (!hasValidType) {
+            throw new Error(`Invalid value for ${key}.`);
+          }
+          settingsToSave[key] = value;
+        });
+
+        if (Object.keys(settingsToSave).length === 0) {
+          throw new Error('No supported settings were found.');
+        }
+
+        chrome.storage.sync.set(settingsToSave, () => {
+          if (chrome.runtime.lastError) {
+            setSettingsTransferStatus('Unable to import settings.', false);
+            return;
+          }
+
+          refreshSettingsDisplay();
+          setSettingsTransferStatus('Settings imported.');
+        });
+      } catch (error) {
+        setSettingsTransferStatus(`Import failed: ${error.message}`, false);
+      } finally {
+        importSettingsFile.value = '';
+      }
+    });
+  }
+
   if (troubleshooterToggle) {
-    chrome.storage.sync.get({ show_troubleshooter: true }, ({ show_troubleshooter }) => {
-      const enabled = show_troubleshooter !== false;
+    chrome.storage.sync.get({ show_troubleshooter: false }, ({ show_troubleshooter }) => {
+      const enabled = show_troubleshooter === true;
       troubleshooterToggle.checked = enabled;
       updateTroubleshooterStatus(enabled);
     });
@@ -166,20 +281,30 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       input.value = data[storageKey] || "";
-      current.textContent = data[storageKey] || "Not set";
+      if (current) {
+        current.textContent = data[storageKey] || "Not set";
+      }
     });
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
 
-      chrome.storage.sync.set({ [storageKey]: input.value });
+      chrome.storage.sync.set({ [storageKey]: input.value }, () => {
+        if (chrome.runtime.lastError) {
+          setSettingsTransferStatus(`Unable to save ${storageKey}.`, false);
+          return;
+        }
 
-      current.textContent = input.value;
+        if (current) {
+          current.textContent = input.value || "Not set";
+        }
+        setSettingsTransferStatus('Settings saved.');
+      });
     });
   };
 
   forms.forEach(form => {
-    const input = form.querySelector('input');
+    const input = form.querySelector('input, textarea');
     const storageKey = form.dataset.formKey;
 
     // Skip this iteration if storageKey is null or undefined
@@ -190,6 +315,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const current = Array.from(displayElements).find(
       el => el.dataset.displayKey === storageKey
     );
+
+    // Some action forms use data-form-key but do not display a stored value.
+    if (!current) {
+      return;
+    }
 
     processForm(form, input, current, storageKey);
   });

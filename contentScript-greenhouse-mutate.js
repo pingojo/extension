@@ -1522,7 +1522,6 @@ function searchElement(element) {
 }
 
 function isJobPosting(source) {
-  //console.log("checking if job posting is : " + source);
   if (source == "greenhouse") {
     const scriptTags = document.getElementsByTagName('script');
     for (const scriptTag of scriptTags) {

@@ -28,13 +28,18 @@
       margin-bottom: 20px;
     }
 
-    input {
+    input, textarea {
       flex: 1;
       margin-right: 10px;
       padding: 5px;
       border: 1px solid #ddd;
       border-radius: 4px;
       max-width: 200px;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
     }
 
     button {
@@ -80,6 +85,12 @@
       <button id="copy-and-open">Build Cover Letter with ChatGPT on Selected Text</button>
       <button id="view-storage-btn">View LocalStorage Data</button>
       <button id="clear-data-btn">Clear Application Data</button>
+
+      <h1>Import or Export Settings</h1>
+      <button type="button" id="export-settings-btn">Export Settings</button>
+      <button type="button" id="import-settings-btn">Import Settings</button>
+      <input type="file" id="import-settings-file" accept="application/json,.json" hidden />
+      <p id="settings-transfer-status" aria-live="polite"></p>
       
       <h1>Set Base URL</h1>
       <form data-form-key="base_url">
@@ -90,8 +101,8 @@
 
       <h1>Set Prompt Injection</h1>
       <form data-form-key="prompt_text">
-        <input type="text" placeholder="Enter prompt injection" />
-        <button type="submit">Save</button>
+        <textarea placeholder="Enter prompt injection"></textarea>
+        <button type="submit">Save Changes</button>
       </form>
       <p>Current Prompt Injection: <span data-display-key="prompt_text"></span></p>
 
