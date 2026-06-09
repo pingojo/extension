@@ -2985,7 +2985,7 @@ function addApplyLinkIfEligible(li, email, baseUrl) {
     li.appendChild(applyLink);
   };
 
-  if (isCurrentPageJobPost() && getEmailDomain(email)) {
+  if (getEmailDomain(email)) {
     addApplyLink(getApplyJobInfoForEmail(currentJobInfo, email));
   }
 
@@ -3880,6 +3880,13 @@ if (!excludedDomains.some(domain => window.location.href.includes(domain))) {
     });
 
     newDiv.appendChild(closeButton);
+
+    const foundEmailsLabel = document.createElement("div");
+    foundEmailsLabel.textContent = "Found emails";
+    foundEmailsLabel.style.fontWeight = "bold";
+    foundEmailsLabel.style.marginTop = "8px";
+    foundEmailsLabel.style.marginBottom = "4px";
+    newDiv.appendChild(foundEmailsLabel);
 
     // Email list
     const emailList = document.createElement("ul");
