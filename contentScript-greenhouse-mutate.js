@@ -1,6 +1,13 @@
 const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336']; // green, blue, orange, and red
 const excludedDomains = ["pingojo.com", "google.com", "127.0.0.1", "chatgpt.com"];
 
+let cachedLastJobViewed = null;
+chrome.storage.sync.get(['last_job_viewed'], ({ last_job_viewed }) => {
+  if (last_job_viewed) {
+    cachedLastJobViewed = last_job_viewed;
+  }
+});
+
 const waitForViewMessageLink = setInterval(() => {
   const elementsWithViewMessage = Array.from(document.querySelectorAll('*')).filter(element => element.textContent === 'View message');
   if (elementsWithViewMessage.length > 0) {
@@ -2104,6 +2111,23 @@ function getCurrentApplyJobInfo() {
     jobInfo.link = window.location.href.split("?")[0];
   }
 
+  // Fill missing fields from last viewed job (persisted across pages via sync storage)
+  if ((!jobInfo.company || !jobInfo.title) && cachedLastJobViewed) {
+    const last = normalizeStoredJobInfo(cachedLastJobViewed);
+    if (!jobInfo.company && last.company) {
+      jobInfo.company = last.company;
+    }
+    if (!jobInfo.title && last.title) {
+      jobInfo.title = last.title;
+    }
+    if (!jobInfo.link && last.link) {
+      jobInfo.link = last.link;
+    }
+    if (!jobInfo.website && last.website) {
+      jobInfo.website = last.website;
+    }
+  }
+
   if (!jobInfo.company) {
     jobInfo.company = localStorage.getItem('company') || '';
   }
@@ -2141,6 +2165,7 @@ function persistCurrentJobInfo(jobInfo, source) {
     email: ''
   };
 
+  cachedLastJobViewed = lastViewed;
   chrome.storage.sync.set({ last_job_viewed: lastViewed });
 }
 
