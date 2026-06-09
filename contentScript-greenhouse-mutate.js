@@ -2112,7 +2112,7 @@ function getCurrentApplyJobInfo() {
   }
 
   // Fill missing fields from last viewed job (persisted across pages via sync storage)
-  if ((!jobInfo.company || !jobInfo.title) && cachedLastJobViewed) {
+  if ((!jobInfo.company || !jobInfo.title || !jobInfo.pingojoJobSlug) && cachedLastJobViewed) {
     const last = normalizeStoredJobInfo(cachedLastJobViewed);
     if (!jobInfo.company && last.company) {
       jobInfo.company = last.company;
@@ -2125,6 +2125,9 @@ function getCurrentApplyJobInfo() {
     }
     if (!jobInfo.website && last.website) {
       jobInfo.website = last.website;
+    }
+    if (!jobInfo.pingojoJobSlug && last.pingojoJobSlug) {
+      jobInfo.pingojoJobSlug = last.pingojoJobSlug;
     }
   }
 
@@ -2162,7 +2165,8 @@ function persistCurrentJobInfo(jobInfo, source) {
     job_url: currentJobInfo.link || '',
     source: currentJobInfo.source || '',
     saved_at: currentJobInfo.savedAt || '',
-    email: ''
+    email: '',
+    pingojo_job_slug: currentJobInfo.pingojoJobSlug || ''
   };
 
   cachedLastJobViewed = lastViewed;
@@ -2175,7 +2179,8 @@ function normalizeStoredJobInfo(value) {
     title: value.title || value.role_title || value.job_role || value.role_name || '',
     link: value.link || value.job_link || value.job_url || '',
     website: value.website || value.company_website || '',
-    companyEmail: value.companyEmail || value.company_email || value.email || value.to_email || ''
+    companyEmail: value.companyEmail || value.company_email || value.email || value.to_email || '',
+    pingojoJobSlug: value.pingojoJobSlug || value.pingojo_job_slug || ''
   };
 }
 
@@ -2345,6 +2350,9 @@ function buildPingojoApplyUrl(baseUrl, email, jobInfo) {
   applyUrl.searchParams.set('source', 'extension_email_finder');
   applyUrl.searchParams.set('create_cover_letter', '1');
 
+  if (jobInfo.pingojoJobSlug) {
+    applyUrl.searchParams.set('pingojo_job_slug', jobInfo.pingojoJobSlug);
+  }
   if (jobInfo.link) {
     applyUrl.searchParams.set('job_url', jobInfo.link);
   }
@@ -2577,6 +2585,14 @@ async function sendJobInfoToBackend(jobInfo) {
                   throw new Error(`Backend response missing job_url: ${JSON.stringify(data)}`);
                 }
                 job_url = data.job_url;
+                const pingojoSlug = data.job_url.split('/').filter(Boolean).pop();
+                if (pingojoSlug) {
+                  window.pingojoCurrentJobInfo = { ...(window.pingojoCurrentJobInfo || {}), pingojoJobSlug: pingojoSlug };
+                  if (cachedLastJobViewed) {
+                    cachedLastJobViewed = { ...cachedLastJobViewed, pingojo_job_slug: pingojoSlug };
+                    chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
+                  }
+                }
                 if (document.getElementById('pingojo_link_id')) {
                   document.getElementById('pingojo_link_id').href = job_url;
                   document.getElementById('pingojo_link_id').title = "View on Pingojo";
