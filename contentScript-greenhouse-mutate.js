@@ -2157,6 +2157,11 @@ function persistCurrentJobInfo(jobInfo, source) {
 
   window.pingojoCurrentJobInfo = currentJobInfo;
 
+  // Don't overwrite good stored data with an empty extraction result.
+  if (!currentJobInfo.company && !currentJobInfo.title) {
+    return;
+  }
+
   const lastViewed = {
     company_name: currentJobInfo.company || '',
     role_title: currentJobInfo.title || '',
@@ -2170,7 +2175,11 @@ function persistCurrentJobInfo(jobInfo, source) {
   };
 
   cachedLastJobViewed = lastViewed;
-  chrome.storage.sync.set({ last_job_viewed: lastViewed });
+  chrome.storage.sync.set({
+    last_job_viewed: lastViewed,
+    recent_company: currentJobInfo.company || '',
+    recent_role: currentJobInfo.title || '',
+  });
 }
 
 function normalizeStoredJobInfo(value) {
@@ -2332,10 +2341,21 @@ function addApplyLinkIfEligible(container, email, baseUrl) {
   findLocalApplyJobInfo(email, currentJobInfo, (localApplyJobInfo) => {
     if (localApplyJobInfo) {
       addApplyLink(localApplyJobInfo);
+      // Stamp the email onto last_job_viewed so the popup sees it immediately.
+      if (cachedLastJobViewed && email) {
+        cachedLastJobViewed = { ...cachedLastJobViewed, email };
+        chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
+      }
       return;
     }
 
-    fetchBackendApplyJobInfo(baseUrl, email, currentJobInfo, addApplyLink);
+    fetchBackendApplyJobInfo(baseUrl, email, currentJobInfo, (applyJobInfo) => {
+      addApplyLink(applyJobInfo);
+      if (cachedLastJobViewed && email) {
+        cachedLastJobViewed = { ...cachedLastJobViewed, email };
+        chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
+      }
+    });
   });
 }
 
@@ -2948,8 +2968,27 @@ async function createOverlay(jobsite) {
 
   applications = await getApplications();
 
-  const company = jobInfo.company;
-  const application = applications.find(application => application.company_name.toLowerCase() === company.toLowerCase());
+  const company = jobInfo.company || '';
+
+  function normalizeName(name) {
+    return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  function matchApplication(companyName, apps) {
+    const norm = normalizeName(companyName);
+    if (!norm) return null;
+    // Exact normalized match
+    let found = apps.find(a => normalizeName(a.company_name) === norm);
+    if (found) return found;
+    // Contains match either way
+    found = apps.find(a => {
+      const n = normalizeName(a.company_name);
+      return n.includes(norm) || norm.includes(n);
+    });
+    return found || null;
+  }
+
+  const application = matchApplication(company, applications);
   if (application) {
     const applicationInfo = document.createElement("div");
     applicationInfo.style.marginBottom = "10px";
@@ -2959,13 +2998,38 @@ async function createOverlay(jobsite) {
     applicationInfo.style.backgroundColor = "#eee";
     applicationInfo.textContent = `${application.stage_name} - ${application.job_role} at ${application.company_name}`;
 
+    if (application.company_email) {
+      const emailLine = document.createElement("div");
+      emailLine.style.marginTop = "6px";
+      emailLine.textContent = `Email: ${application.company_email}`;
+      applicationInfo.appendChild(emailLine);
+    }
+
     const followUpButton = document.createElement("button");
     if (application.stage_name != "Passed") {
       followUpButton.textContent = "Follow Up";
       followUpButton.style.marginTop = "10px";
       followUpButton.addEventListener('click', () => handleFollowUpButtonClick(application));
-
       applicationInfo.appendChild(followUpButton);
+    }
+
+    if (application.company_email) {
+      const applyButton = document.createElement("button");
+      applyButton.textContent = "Apply";
+      applyButton.style.marginTop = "10px";
+      applyButton.style.marginLeft = "6px";
+      applyButton.addEventListener('click', () => {
+        chrome.storage.sync.get('base_url', ({ base_url }) => {
+          const jobInfo = getCurrentApplyJobInfo();
+          const url = buildPingojoApplyUrl(base_url, application.company_email, jobInfo);
+          if (cachedLastJobViewed) {
+            cachedLastJobViewed = { ...cachedLastJobViewed, email: application.company_email };
+            chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
+          }
+          window.open(url, '_blank');
+        });
+      });
+      applicationInfo.appendChild(applyButton);
     }
 
     const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336'];
@@ -3110,14 +3174,38 @@ if (!excludedDomains.some(domain => window.location.href.includes(domain))) {
         }
       });
 
-      if (emailList.children.length > 0) {
-        newDiv.appendChild(emailList);
-        const companySidebar = document.getElementById("company-sidebar");
-        if (companySidebar) {
-          companySidebar.appendChild(newDiv);
-        } else {
-          document.body.appendChild(newDiv);
+      // Manual email input row — always present so user can paste any address.
+      const manualLi = document.createElement("li");
+      manualLi.style.marginTop = "6px";
+      const manualInput = document.createElement("input");
+      manualInput.type = "text";
+      manualInput.placeholder = "Paste email…";
+      manualInput.style.cssText = "width:140px;font-size:12px;padding:2px 4px;";
+      const manualApplyBtn = document.createElement("button");
+      manualApplyBtn.textContent = "Apply";
+      manualApplyBtn.style.cssText = "margin-left:4px;font-size:12px;";
+      manualApplyBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const email = manualInput.value.trim();
+        if (!email || !email.includes("@")) return;
+        const jobInfo = getCurrentApplyJobInfo();
+        const url = buildPingojoApplyUrl(base_url, email, jobInfo);
+        if (cachedLastJobViewed) {
+          cachedLastJobViewed = { ...cachedLastJobViewed, email };
+          chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
         }
+        window.open(url, "_blank");
+      });
+      manualLi.appendChild(manualInput);
+      manualLi.appendChild(manualApplyBtn);
+      emailList.appendChild(manualLi);
+
+      newDiv.appendChild(emailList);
+      const companySidebar = document.getElementById("company-sidebar");
+      if (companySidebar) {
+        companySidebar.appendChild(newDiv);
+      } else {
+        document.body.appendChild(newDiv);
       }
     });
 

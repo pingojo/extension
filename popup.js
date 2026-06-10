@@ -348,28 +348,23 @@ document.getElementById('start-job').addEventListener('click', () => {
 
   function loadInitialStatusData() {
     chrome.storage.sync.get(['recent_company','recent_role','last_job_viewed'], syncData => {
-      const recentCompany = syncData.recent_company || '';
-      const recentRole = syncData.recent_role || '';
       const lastViewed = syncData.last_job_viewed || {};
-      if (companyInputSM && !companyInputSM.value) companyInputSM.value = recentCompany;
-      if (roleInputSM && !roleInputSM.value) roleInputSM.value = recentRole;
-      if (lastViewed.company_name) companyInputSM.value = lastViewed.company_name;
-      if (lastViewed.role_title || lastViewed.job_role) roleInputSM.value = lastViewed.role_title || lastViewed.job_role;
-      if (lastViewed.email) emailInputSM.value = lastViewed.email;
+      const company = lastViewed.company_name || syncData.recent_company || '';
+      const role = lastViewed.role_title || lastViewed.job_role || syncData.recent_role || '';
+      const email = lastViewed.email || '';
 
+      if (companyInputSM && !companyInputSM.value) companyInputSM.value = company;
+      if (roleInputSM && !roleInputSM.value) roleInputSM.value = role;
+      if (emailInputSM && email && !emailInputSM.value) emailInputSM.value = email;
+
+      // Only use local apps to fill missing email and show stage — never override company/role.
       chrome.storage.local.get('applications', localData => {
         const apps = localData.applications || [];
-        let matched = null;
-        if (recentCompany) {
-          matched = apps.find(a => a.company_name && a.company_name.toLowerCase() === recentCompany.toLowerCase());
-        }
-        if (!matched && apps.length) {
-          matched = apps[apps.length - 1]; // fallback to last
-        }
+        const matched = company
+          ? apps.find(a => a.company_name && a.company_name.toLowerCase() === company.toLowerCase())
+          : null;
         if (matched) {
-          if (companyInputSM) companyInputSM.value = matched.company_name || companyInputSM.value;
-          if (roleInputSM) roleInputSM.value = matched.job_role || matched.role_name || roleInputSM.value;
-          if (emailInputSM) emailInputSM.value = matched.email || emailInputSM.value;
+          if (emailInputSM && !emailInputSM.value) emailInputSM.value = matched.email || '';
           highlightStage(matched.stage_name);
         }
       });
@@ -380,22 +375,23 @@ document.getElementById('start-job').addEventListener('click', () => {
 
   function fillFromChromeStorage() {
     chrome.storage.sync.get(['recent_company','recent_role','last_job_viewed'], syncData => {
-      const rc = syncData.recent_company || '';
-      const rr = syncData.recent_role || '';
       const lv = syncData.last_job_viewed || {};
+      const company = lv.company_name || syncData.recent_company || '';
+      const role = lv.role_title || lv.job_role || syncData.recent_role || '';
+      const email = lv.email || '';
 
-      if (rc) companyInputSM.value = rc;
-      if (rr) roleInputSM.value = rr;
-      if (lv.company_name) companyInputSM.value = lv.company_name;
-      if (lv.role_title || lv.job_role) roleInputSM.value = lv.role_title || lv.job_role;
-      if (lv.email) emailInputSM.value = lv.email;
+      companyInputSM.value = company;
+      roleInputSM.value = role;
+      if (email) emailInputSM.value = email;
 
-      // Try to enrich email from applications cache by company match
+      // Only use local apps to fill missing email and show stage — never override company/role.
       chrome.storage.local.get('applications', ({ applications }) => {
         const apps = applications || [];
-        const match = apps.find(a => a.company_name && a.company_name.toLowerCase() === companyInputSM.value.trim().toLowerCase());
-        if (match && match.email) {
-          emailInputSM.value = match.email;
+        const match = company
+          ? apps.find(a => a.company_name && a.company_name.toLowerCase() === company.toLowerCase())
+          : null;
+        if (match) {
+          if (!emailInputSM.value && match.email) emailInputSM.value = match.email;
           if (match.stage_name) highlightStage(match.stage_name);
         }
         setFeedback('Fields filled from storage');

@@ -2877,6 +2877,11 @@ function persistCurrentJobInfo(jobInfo, source) {
 
   window.pingojoCurrentJobInfo = currentJobInfo;
 
+  // Don't overwrite good stored data with an empty extraction result.
+  if (!currentJobInfo.company && !currentJobInfo.title) {
+    return;
+  }
+
   const lastViewed = {
     company_name: currentJobInfo.company || '',
     role_title: currentJobInfo.title || '',
@@ -2890,7 +2895,11 @@ function persistCurrentJobInfo(jobInfo, source) {
   };
 
   cachedLastJobViewed = lastViewed;
-  chrome.storage.sync.set({ last_job_viewed: lastViewed });
+  chrome.storage.sync.set({
+    last_job_viewed: lastViewed,
+    recent_company: currentJobInfo.company || '',
+    recent_role: currentJobInfo.title || '',
+  });
 }
 
 function normalizeStoredJobInfo(value) {
@@ -3052,10 +3061,21 @@ function addApplyLinkIfEligible(li, email, baseUrl) {
   findLocalApplyJobInfo(email, currentJobInfo, (localApplyJobInfo) => {
     if (localApplyJobInfo) {
       addApplyLink(localApplyJobInfo);
+      // Stamp the email onto last_job_viewed so the popup sees it immediately.
+      if (cachedLastJobViewed && email) {
+        cachedLastJobViewed = { ...cachedLastJobViewed, email };
+        chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
+      }
       return;
     }
 
-    fetchBackendApplyJobInfo(baseUrl, email, currentJobInfo, addApplyLink);
+    fetchBackendApplyJobInfo(baseUrl, email, currentJobInfo, (applyJobInfo) => {
+      addApplyLink(applyJobInfo);
+      if (cachedLastJobViewed && email) {
+        cachedLastJobViewed = { ...cachedLastJobViewed, email };
+        chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
+      }
+    });
   });
 }
 
@@ -3269,75 +3289,103 @@ async function sendJobInfoToBackend(jobInfo) {
     jobInfo.link_is_410 = true;
   }
 
-  chrome.storage.sync.get("base_url", ({ base_url }) => {
-    var base_url = base_url || "https://www.pingojo.com";
-    var full_url = base_url + "/api/add_job/";
-    chrome.runtime.sendMessage({
-      type: 'getSessionCookie',
-      url: base_url
-    }, (sessionCookie) => {
-      if (sessionCookie) {
-        chrome.runtime.sendMessage({
-          type: 'getCSRFToken',
-          url: base_url
-        }, (csrfToken) => {
-          if (csrfToken) {
-            const headers = {
-              'Content-Type': 'application/json',
-              'Cookie': `sessionid=${sessionCookie.value}`,
-              'X-CSRFToken': csrfToken,
-            }
-            fetch(full_url, {
-              method: 'POST',
-              credentials: 'include',
-              headers: headers,
-              body: JSON.stringify(jobInfo),
-            })
-              .then(async response => {
-                if (!response.ok) {
-                  const responseText = await response.text().catch(() => '');
-                  throw new Error(`Network response was not ok (${response.status}) ${responseText}`);
-                }
-                return response.json();
-              }).then(data => {
-                if (!data || !data.job_url) {
-                  throw new Error(`Backend response missing job_url: ${JSON.stringify(data)}`);
-                }
-                job_url = data.job_url;
-                const pingojoSlug = data.job_url.split('/').filter(Boolean).pop();
-                if (pingojoSlug) {
-                  window.pingojoCurrentJobInfo = { ...(window.pingojoCurrentJobInfo || {}), pingojoJobSlug: pingojoSlug };
-                  if (cachedLastJobViewed) {
-                    cachedLastJobViewed = { ...cachedLastJobViewed, pingojo_job_slug: pingojoSlug };
-                    chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
-                  }
-                }
-                if (document.getElementById('pingojo_link_id')) {
-                  document.getElementById('pingojo_link_id').href = job_url;
-                  document.getElementById('pingojo_link_id').title = "View on Pingojo";
-                  document.getElementById('pingojo_link_id').style.display = "block";
-                }
-                if (document.getElementById('pingojo_search_company_id')) {
-                  document.getElementById('pingojo_search_company_id').href = "https://www.pingojo.com/?search=" + jobInfo.company + "&search_type=company";
-                  document.getElementById('pingojo_search_company_id').title = "Search " + jobInfo.company + " on Pingojo";
-                  document.getElementById('pingojo_search_company_id').style.display = "block";
-                }
-                if (data.website || data.company_website) {
-                  jobInfo.website = data.website || data.company_website;
-                  window.pingojoCurrentJobInfo = { ...(window.pingojoCurrentJobInfo || {}), website: jobInfo.website };
-                }
-              })
-              .catch(error => {
-              });
-          } else {
-            window.location = base_url + '/accounts/login/?from=gmail';
-          }
-        });
-      } else {
-        window.location = base_url + '/accounts/login/?from=gmail';
-      }
+  try {
+    const { base_url: storedBaseUrl } = await new Promise(resolve =>
+      chrome.storage.sync.get("base_url", resolve)
+    );
+    const base_url = storedBaseUrl || "https://www.pingojo.com";
+    const full_url = base_url + "/api/add_job/";
+
+    const sessionCookie = await new Promise(resolve =>
+      chrome.runtime.sendMessage({ type: 'getSessionCookie', url: base_url }, resolve)
+    );
+    if (!sessionCookie) {
+      window.location = base_url + '/accounts/login/?from=gmail';
+      return;
+    }
+
+    const csrfToken = await new Promise(resolve =>
+      chrome.runtime.sendMessage({ type: 'getCSRFToken', url: base_url }, resolve)
+    );
+    if (!csrfToken) {
+      window.location = base_url + '/accounts/login/?from=gmail';
+      return;
+    }
+
+    const response = await fetch(full_url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `sessionid=${sessionCookie.value}`,
+        'X-CSRFToken': csrfToken,
+      },
+      body: JSON.stringify(jobInfo),
     });
-  });
+
+    if (!response.ok) {
+      const responseText = await response.text().catch(() => '');
+      throw new Error(`Network response was not ok (${response.status}) ${responseText}`);
+    }
+
+    const data = await response.json();
+    if (!data || !data.job_url) {
+      throw new Error(`Backend response missing job_url: ${JSON.stringify(data)}`);
+    }
+
+    job_url = data.job_url;
+    const pingojoSlug = data.job_url.split('/').filter(Boolean).pop();
+    if (pingojoSlug) {
+      window.pingojoCurrentJobInfo = { ...(window.pingojoCurrentJobInfo || {}), pingojoJobSlug: pingojoSlug };
+      if (cachedLastJobViewed) {
+        cachedLastJobViewed = { ...cachedLastJobViewed, pingojo_job_slug: pingojoSlug };
+        chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
+      }
+    }
+    if (document.getElementById('pingojo_link_id')) {
+      document.getElementById('pingojo_link_id').href = job_url;
+      document.getElementById('pingojo_link_id').title = "View on Pingojo";
+      document.getElementById('pingojo_link_id').style.display = "block";
+    }
+    if (document.getElementById('pingojo_search_company_id')) {
+      document.getElementById('pingojo_search_company_id').href = "https://www.pingojo.com/?search=" + jobInfo.company + "&search_type=company";
+      document.getElementById('pingojo_search_company_id').title = "Search " + jobInfo.company + " on Pingojo";
+      document.getElementById('pingojo_search_company_id').style.display = "block";
+    }
+    if (data.website || data.company_website) {
+      jobInfo.website = data.website || data.company_website;
+      window.pingojoCurrentJobInfo = { ...(window.pingojoCurrentJobInfo || {}), website: jobInfo.website };
+    }
+
+    // Sync server-side application data into local cache so overlay matching works immediately
+    if (data.applications && data.applications.length > 0) {
+      const { applications: storedApps } = await new Promise(resolve =>
+        chrome.storage.local.get('applications', resolve)
+      );
+      let apps = storedApps || [];
+      data.applications.forEach(serverApp => {
+        const serverNorm = (serverApp.company || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!serverNorm) return;
+        const existingIdx = apps.findIndex(a =>
+          (a.company_name || '').toLowerCase().replace(/[^a-z0-9]/g, '') === serverNorm
+        );
+        const entry = {
+          company_name: serverApp.company || '',
+          job_role: serverApp.role || '',
+          stage_name: serverApp.stage || '',
+          company_email: serverApp.email || jobInfo.companyEmail || jobInfo.email || apps[existingIdx]?.company_email || '',
+        };
+        if (existingIdx !== -1) {
+          apps[existingIdx] = { ...apps[existingIdx], ...entry };
+        } else {
+          apps.push(entry);
+        }
+      });
+      await new Promise(resolve => chrome.storage.local.set({ applications: apps }, resolve));
+    }
+  } catch (error) {
+    // silent — overlay rendering continues regardless
+  }
 }
 
 function getCookie(name) {
@@ -3755,7 +3803,7 @@ async function createOverlay(jobsite) {
     }
   }
 
-  var returned_info = sendJobInfoToBackend(jobInfo);
+  await sendJobInfoToBackend(jobInfo);
 
   applications = await getApplications();
 
@@ -3832,8 +3880,26 @@ async function createOverlay(jobsite) {
       followUpButton.textContent = "Follow Up";
       followUpButton.style.marginTop = "10px";
       followUpButton.addEventListener('click', () => handleFollowUpButtonClick(application));
-
       applicationInfo.appendChild(followUpButton);
+    }
+
+    if (application.company_email) {
+      const applyButton = document.createElement("button");
+      applyButton.textContent = "Apply";
+      applyButton.style.marginTop = "10px";
+      applyButton.style.marginLeft = "6px";
+      applyButton.addEventListener('click', () => {
+        chrome.storage.sync.get('base_url', ({ base_url }) => {
+          const jobInfo = getCurrentApplyJobInfo();
+          const url = buildPingojoApplyUrl(base_url, application.company_email, jobInfo);
+          if (cachedLastJobViewed) {
+            cachedLastJobViewed = { ...cachedLastJobViewed, email: application.company_email };
+            chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
+          }
+          window.open(url, '_blank');
+        });
+      });
+      applicationInfo.appendChild(applyButton);
     }
 
     const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336'];
@@ -3991,14 +4057,38 @@ if (!excludedDomains.some(domain => window.location.href.includes(domain))) {
         }
       });
 
-      if (emailList.children.length > 0) {
-        newDiv.appendChild(emailList);
-        const companySidebar = document.getElementById("company-sidebar");
-        if (companySidebar) {
-          companySidebar.appendChild(newDiv);
-        } else {
-          document.body.appendChild(newDiv);
+      // Manual email input row — always present so user can paste any address.
+      const manualLi = document.createElement("li");
+      manualLi.style.marginTop = "6px";
+      const manualInput = document.createElement("input");
+      manualInput.type = "text";
+      manualInput.placeholder = "Paste email…";
+      manualInput.style.cssText = "width:140px;font-size:12px;padding:2px 4px;";
+      const manualApplyBtn = document.createElement("button");
+      manualApplyBtn.textContent = "Apply";
+      manualApplyBtn.style.cssText = "margin-left:4px;font-size:12px;";
+      manualApplyBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const email = manualInput.value.trim();
+        if (!email || !email.includes("@")) return;
+        const jobInfo = getCurrentApplyJobInfo();
+        const url = buildPingojoApplyUrl(base_url, email, jobInfo);
+        if (cachedLastJobViewed) {
+          cachedLastJobViewed = { ...cachedLastJobViewed, email };
+          chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
         }
+        window.open(url, "_blank");
+      });
+      manualLi.appendChild(manualInput);
+      manualLi.appendChild(manualApplyBtn);
+      emailList.appendChild(manualLi);
+
+      newDiv.appendChild(emailList);
+      const companySidebar = document.getElementById("company-sidebar");
+      if (companySidebar) {
+        companySidebar.appendChild(newDiv);
+      } else {
+        document.body.appendChild(newDiv);
       }
     });
 
