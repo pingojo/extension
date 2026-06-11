@@ -1,5 +1,5 @@
 const colors = ['#8bc34a', '#03a9f4', '#ff9800', '#f44336']; // green, blue, orange, and red
-const excludedDomains = ["pingojo.com", "google.com", "127.0.0.1", "chatgpt.com"];
+const excludedDomains = ["pingojo.com", "google.com", "wellfound.com", "127.0.0.1", "chatgpt.com"];
 
 let cachedLastJobViewed = null;
 chrome.storage.sync.get(['last_job_viewed'], ({ last_job_viewed }) => {
@@ -3394,6 +3394,62 @@ function getCookie(name) {
   if (parts.length === 2) return parts.pop().split(";").shift();
 }
 
+async function updateCompanyWebsiteOnPingojo(companyName, website) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.sync.get("base_url", ({ base_url }) => {
+      const baseUrl = base_url || "https://www.pingojo.com";
+      const apiUrl = baseUrl + "/api/update_company_website/";
+
+      chrome.runtime.sendMessage({ type: 'getSessionCookie', url: baseUrl }, (sessionCookie) => {
+        if (!sessionCookie) {
+          window.location = baseUrl + '/accounts/login/?from=extension';
+          reject(new Error('Missing session cookie'));
+          return;
+        }
+
+        chrome.runtime.sendMessage({ type: 'getCSRFToken', url: baseUrl }, (csrfToken) => {
+          if (!csrfToken) {
+            window.location = baseUrl + '/accounts/login/?from=extension';
+            reject(new Error('Missing CSRF token'));
+            return;
+          }
+
+          const headers = {
+            'Content-Type': 'application/json',
+            'Cookie': `sessionid=${sessionCookie.value}`,
+            'X-CSRFToken': csrfToken,
+          };
+
+          const payload = {
+            company_name: companyName,
+            website: website,
+            last_modified: new Date().toISOString()
+          };
+
+          fetch(apiUrl, {
+            method: 'POST',
+            credentials: 'include',
+            headers,
+            body: JSON.stringify(payload),
+          })
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.json();
+            })
+            .then((data) => {
+              resolve(data);
+            })
+            .catch((error) => {
+              reject(error);
+            });
+        });
+      });
+    });
+  });
+}
+
 async function createOverlay(jobsite) {
   const existingOverlay = document.getElementById('job-data-extractor-overlay');
   if (existingOverlay) {
@@ -3416,6 +3472,25 @@ async function createOverlay(jobsite) {
   overlay.style.padding = "10px";
   overlay.style.boxShadow = "0 0 10px rgba(0, 0, 0, 0.2)";
   document.body.appendChild(overlay);
+
+  // Watch for overlay removal and re-add it if needed (for React apps that aggressively re-render)
+  const overlayWatchInterval = setInterval(() => {
+    if (!document.body.contains(overlay)) {
+      if (!document.getElementById('job-data-extractor-overlay')) {
+        document.body.appendChild(overlay);
+      }
+    }
+  }, 500);
+
+  const title = document.createElement("h2");
+  title.textContent = "Company Data Widget";
+  title.style.marginTop = "0";
+  title.style.marginBottom = "15px";
+  title.style.fontSize = "18px";
+  title.style.fontWeight = "bold";
+  title.style.textAlign = "center";
+  title.style.color = "#333";
+  overlay.appendChild(title);
 
   let isDragging = false;
   let initialX;
@@ -3494,7 +3569,7 @@ async function createOverlay(jobsite) {
     jobInfo = extractGenericJobInfo();
   }
 
-  const displayJobInfo = jobsite === "wellfound"
+  const displayJobInfo = (jobsite === "wellfound" || jobsite === "greenhouse")
     ? withMissingJobInfoFields(jobInfo, [
       'title',
       'company',
@@ -3696,20 +3771,89 @@ async function createOverlay(jobsite) {
     label.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)}:`;
     form.appendChild(label);
 
-    if (key === "website" && isValidHttpUrl(displayJobInfo[key])) {
-      const anchor = document.createElement("a");
-      anchor.href = displayJobInfo[key];
-      anchor.target = "_blank";
-      anchor.textContent = displayJobInfo[key];
-      anchor.style.display = "block";
-      anchor.style.marginBottom = "10px";
+    if (key === "website") {
+      const input = document.createElement("input");
+      input.id = `job-data-extractor-${key}`;
+      input.type = "text";
+      input.value = displayJobInfo[key];
+      input.placeholder = "Enter company website (e.g., https://example.com)";
+      input.style.width = "100%";
+      input.style.marginBottom = "5px";
+      form.appendChild(input);
 
-      const favicon = document.createElement("img");
-      favicon.src = `https://www.google.com/s2/favicons?domain=${displayJobInfo[key]}`;
-      favicon.style.marginRight = "5px";
+      if (displayJobInfo[key] && displayJobInfo[key] !== "Missing" && isValidHttpUrl(displayJobInfo[key])) {
+        const faviconLink = document.createElement("a");
+        faviconLink.href = displayJobInfo[key];
+        faviconLink.target = "_blank";
+        faviconLink.style.display = "inline-block";
+        faviconLink.style.marginBottom = "10px";
 
-      anchor.insertBefore(favicon, anchor.firstChild);
-      form.appendChild(anchor);
+        const favicon = document.createElement("img");
+        favicon.src = `https://www.google.com/s2/favicons?domain=${displayJobInfo[key]}`;
+        favicon.style.marginRight = "5px";
+        favicon.title = "Visit website";
+        faviconLink.appendChild(favicon);
+        form.appendChild(faviconLink);
+      } else {
+        const spacer = document.createElement("div");
+        spacer.style.marginBottom = "10px";
+        form.appendChild(spacer);
+      }
+
+      const updateButton = document.createElement("button");
+      updateButton.type = "button";
+      updateButton.textContent = "Update Website";
+      updateButton.style.width = "100%";
+      updateButton.style.padding = "8px";
+      updateButton.style.marginBottom = "10px";
+      updateButton.style.backgroundColor = "#4CAF50";
+      updateButton.style.color = "white";
+      updateButton.style.border = "none";
+      updateButton.style.borderRadius = "4px";
+      updateButton.style.cursor = "pointer";
+      updateButton.style.fontSize = "14px";
+      updateButton.style.fontWeight = "bold";
+
+      updateButton.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const website = input.value.trim();
+        if (!website) {
+          alert("Please enter a website URL");
+          return;
+        }
+        if (!isValidHttpUrl(website)) {
+          alert("Please enter a valid website URL (e.g., https://example.com)");
+          return;
+        }
+
+        updateButton.textContent = "Updating...";
+        updateButton.disabled = true;
+
+        try {
+          await updateCompanyWebsiteOnPingojo(jobInfo.company, website);
+          updateButton.textContent = "✓ Updated";
+          lastModifiedEl.textContent = `Last modified: ${new Date().toLocaleString()}`;
+          lastModifiedEl.style.display = 'block';
+          setTimeout(() => {
+            updateButton.textContent = "Update Website";
+            updateButton.disabled = false;
+          }, 2000);
+        } catch (error) {
+          updateButton.textContent = "Failed";
+          setTimeout(() => {
+            updateButton.textContent = "Update Website";
+            updateButton.disabled = false;
+          }, 2000);
+        }
+      });
+      form.appendChild(updateButton);
+
+      const lastModifiedEl = document.createElement('div');
+      lastModifiedEl.style.fontSize = '12px';
+      lastModifiedEl.style.color = '#666';
+      lastModifiedEl.style.marginBottom = '10px';
+      lastModifiedEl.style.display = 'none';
+      form.appendChild(lastModifiedEl);
 
     } else {
       const input = document.createElement("input");
@@ -3736,49 +3880,64 @@ async function createOverlay(jobsite) {
         label.appendChild(copyIcon);
         localStorage.setItem(key, jobInfo[key]);
       }
-    }
-  }
-  const emailsfound = document.createElement("div");
-  let updatedEmails = []
 
-  chrome.storage.sync.get(["email_address", "base_url"], ({ email_address, base_url }) => {
-    if (email_address) {
-      updatedEmails = emails.filter(email => email !== email_address);
-      if (updatedEmails.length > 0) {
-        String(updatedEmails).split(',').forEach(email => {
-          const trimmedEmail = email.trim();
-          const emailLink = document.createElement('a');
-          emailLink.classList.add('emaillink');
-          // emailLink.href = `https://mail.google.com/mail/u/0/?view=cm&fs=1&to=${email.trim()}&tf=1`;
-          // https://mail.google.com/mail/u/0/#inbox?compose=new
-          // copy the email to the clipboard
-          //navigator.clipboard.writeText(email.trim());
-          emailLink.href = `https://mail.google.com/mail/u/0/#inbox?compose=new`;
-          emailLink.target = '_blank';
-          emailLink.textContent = trimmedEmail;
+      if (key === "datePosted" && displayJobInfo[key] && displayJobInfo[key] !== "Missing") {
+        const daysAgoSpan = document.createElement("span");
+        daysAgoSpan.style.fontSize = "12px";
+        daysAgoSpan.style.color = "#666";
+        daysAgoSpan.style.marginLeft = "8px";
 
-          const spacer = document.createTextNode(" ");
-          const addLink = document.createElement('a');
-          addLink.href = `https://pingojo.com/add_email/?email=${trimmedEmail}`;
-          addLink.target = '_blank';
-          addLink.textContent = "+";
+        try {
+          const postedDate = new Date(displayJobInfo[key]);
+          const today = new Date();
+          const daysAgo = Math.floor((today - postedDate) / (1000 * 60 * 60 * 24));
 
-          const lineBreak = document.createElement('br');
-          emailsfound.appendChild(emailLink);
-          emailsfound.appendChild(spacer);
-          emailsfound.appendChild(addLink);
-          addApplyLinkIfEligible(emailsfound, trimmedEmail, base_url);
-          emailsfound.appendChild(lineBreak);
+          if (daysAgo === 0) {
+            daysAgoSpan.textContent = "(today)";
+          } else if (daysAgo === 1) {
+            daysAgoSpan.textContent = "(1 day ago)";
+          } else {
+            daysAgoSpan.textContent = `(${daysAgo} days ago)`;
+          }
+          label.appendChild(daysAgoSpan);
+        } catch (err) {
+          // Could not parse date
+        }
+      }
 
-          emailsfound.style.width = "100%";
-          emailsfound.style.marginBottom = "10px";
-          emailsfound.style.border = "1px solid red";
+      if (key === "website" && displayJobInfo[key] && displayJobInfo[key] !== "Missing" && isValidHttpUrl(displayJobInfo[key])) {
+        const visitButton = document.createElement("button");
+        visitButton.type = "button";
+        visitButton.innerHTML = "🌐 Visit Website";
+        visitButton.style.marginTop = "5px";
+        visitButton.style.marginBottom = "10px";
+        visitButton.style.width = "100%";
+        visitButton.style.padding = "6px";
+        visitButton.style.backgroundColor = "#2196F3";
+        visitButton.style.color = "white";
+        visitButton.style.border = "none";
+        visitButton.style.borderRadius = "4px";
+        visitButton.style.cursor = "pointer";
+        visitButton.style.fontSize = "13px";
+        visitButton.style.fontWeight = "bold";
 
-          form.appendChild(emailsfound);
+        visitButton.addEventListener("click", (e) => {
+          e.preventDefault();
+          window.open(displayJobInfo[key], "_blank");
         });
+
+        visitButton.addEventListener("mouseover", () => {
+          visitButton.style.backgroundColor = "#1976D2";
+        });
+
+        visitButton.addEventListener("mouseout", () => {
+          visitButton.style.backgroundColor = "#2196F3";
+        });
+
+        form.appendChild(visitButton);
       }
     }
-  });
+  }
 
   const gmailLink = document.createElement("a");
   gmailLink.href = "https://mail.google.com/mail/u/0/#search/" + '"' + jobInfo.company + '"';
@@ -3979,148 +4138,154 @@ if (!overlayInitialized) {
 
 if (!excludedDomains.some(domain => window.location.href.includes(domain))) {
   const emails = searchElement(document.body);
+  const newDiv = document.createElement("div");
+  newDiv.id = "email-notification";
 
-  if (emails.length > 0) {
-    const newDiv = document.createElement("div");
-    newDiv.id = "email-notification";
+  // Styles for the notification div
+  newDiv.style.position = "fixed";
+  newDiv.style.bottom = "10px"; // Aligned to the bottom
+  newDiv.style.right = "10px"; // Aligned to the right
+  newDiv.style.zIndex = "1000";
+  newDiv.style.padding = "10px";
+  newDiv.style.backgroundColor = "#a8dadc";
+  newDiv.style.color = "black";
+  newDiv.style.border = "1px solid #ccc";
+  newDiv.style.maxHeight = "200px"; // Limit the height to 200px
+  newDiv.style.overflowY = "auto"; // Enable scrolling if the content exceeds 200px
+  newDiv.style.cursor = "move"; // Change cursor to move when hovering
 
-    // Styles for the notification div
-    newDiv.style.position = "fixed";
-    newDiv.style.bottom = "10px"; // Aligned to the bottom
-    newDiv.style.right = "10px"; // Aligned to the right
-    newDiv.style.zIndex = "1000";
-    newDiv.style.padding = "10px";
-    newDiv.style.backgroundColor = "#a8dadc";
-    newDiv.style.color = "black";
-    newDiv.style.border = "1px solid #ccc";
-    newDiv.style.maxHeight = "200px"; // Limit the height to 200px
-    newDiv.style.overflowY = "auto"; // Enable scrolling if the content exceeds 200px
-    newDiv.style.cursor = "move"; // Change cursor to move when hovering
+  // Close button
+  const closeButton = document.createElement("button");
+  closeButton.textContent = "Close emails";
+  closeButton.style.marginTop = "10px";
+  closeButton.addEventListener("click", () => {
+    newDiv.remove();
+  });
 
-    // Close button
-    const closeButton = document.createElement("button");
-    closeButton.textContent = "Close emails";
-    closeButton.style.marginTop = "10px";
-    closeButton.addEventListener("click", () => {
-      newDiv.remove();
-    });
+  newDiv.appendChild(closeButton);
 
-    newDiv.appendChild(closeButton);
+  const foundEmailsLabel = document.createElement("div");
+  foundEmailsLabel.textContent = "Found Emails - if any:";
+  foundEmailsLabel.style.fontWeight = "bold";
+  foundEmailsLabel.style.marginTop = "8px";
+  foundEmailsLabel.style.marginBottom = "4px";
+  newDiv.appendChild(foundEmailsLabel);
 
-    const foundEmailsLabel = document.createElement("div");
-    foundEmailsLabel.textContent = "Found emails";
-    foundEmailsLabel.style.fontWeight = "bold";
-    foundEmailsLabel.style.marginTop = "8px";
-    foundEmailsLabel.style.marginBottom = "4px";
-    newDiv.appendChild(foundEmailsLabel);
+  // Email list
+  const emailList = document.createElement("ul");
+  emailList.style.listStyleType = "none";
+  chrome.storage.sync.get(["email_address", "base_url"], ({ email_address, base_url }) => {
 
-    // Email list
-    const emailList = document.createElement("ul");
-    emailList.style.listStyleType = "none";
-    chrome.storage.sync.get(["email_address", "base_url"], ({ email_address, base_url }) => {
+    emails.forEach(email => {
+      if (!excludedDomains.some(domain => email.includes(domain)) && !email.includes(email_address)) {
+        let li = document.createElement("li");
 
-      emails.forEach(email => {
-        if (!excludedDomains.some(domain => email.includes(domain)) && !email.includes(email_address)) {
-          let li = document.createElement("li");
+        let mailLink = document.createElement("a");
+        mailLink.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}`;
+        mailLink.target = "_blank";
+        mailLink.textContent = email;
+        li.appendChild(mailLink);
 
-          let mailLink = document.createElement("a");
-          mailLink.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}`;
-          mailLink.target = "_blank";
-          mailLink.textContent = email;
-          li.appendChild(mailLink);
+        let spacer = document.createTextNode(" ");
+        li.appendChild(spacer);
 
-          let spacer = document.createTextNode(" ");
-          li.appendChild(spacer);
+        let copyIcon = document.createElement("button");
+        copyIcon.textContent = "📋";
+        copyIcon.addEventListener("click", (e) => {
+          e.preventDefault();
+          navigator.clipboard.writeText(email);
+          copyIcon.textContent = "📋!";
+          window.open(`https://mail.google.com/mail/u/0/#inbox?compose=new`, "_blank");
+        });
+        li.appendChild(copyIcon);
 
-          let copyIcon = document.createElement("button");
-          copyIcon.textContent = "📋";
-          copyIcon.addEventListener("click", (e) => {
-            e.preventDefault();
-            navigator.clipboard.writeText(email);
-            copyIcon.textContent = "📋!";
-            window.open(`https://mail.google.com/mail/u/0/#inbox?compose=new`, "_blank");
-          });
-          li.appendChild(copyIcon);
+        let spacer2 = document.createTextNode(" ");
+        li.appendChild(spacer2);
 
-          let spacer2 = document.createTextNode(" ");
-          li.appendChild(spacer2);
+        let addLink = document.createElement("a");
+        addLink.href = `https://pingojo.com/add_email/?email=${email}`;
+        addLink.target = "_blank";
+        addLink.textContent = "+";
+        li.appendChild(addLink);
 
-          let addLink = document.createElement("a");
-          addLink.href = `https://pingojo.com/add_email/?email=${email}`;
-          addLink.target = "_blank";
-          addLink.textContent = "+";
-          li.appendChild(addLink);
+        addApplyLinkIfEligible(li, email, base_url);
 
-          addApplyLinkIfEligible(li, email, base_url);
-
-          emailList.appendChild(li);
-        }
-      });
-
-      // Manual email input row — always present so user can paste any address.
-      const manualLi = document.createElement("li");
-      manualLi.style.marginTop = "6px";
-      const manualInput = document.createElement("input");
-      manualInput.type = "text";
-      manualInput.placeholder = "Paste email…";
-      manualInput.style.cssText = "width:140px;font-size:12px;padding:2px 4px;";
-      const manualApplyBtn = document.createElement("button");
-      manualApplyBtn.textContent = "Apply";
-      manualApplyBtn.style.cssText = "margin-left:4px;font-size:12px;";
-      manualApplyBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        const email = manualInput.value.trim();
-        if (!email || !email.includes("@")) return;
-        const jobInfo = getCurrentApplyJobInfo();
-        const url = buildPingojoApplyUrl(base_url, email, jobInfo);
-        if (cachedLastJobViewed) {
-          cachedLastJobViewed = { ...cachedLastJobViewed, email };
-          chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
-        }
-        window.open(url, "_blank");
-      });
-      manualLi.appendChild(manualInput);
-      manualLi.appendChild(manualApplyBtn);
-      emailList.appendChild(manualLi);
-
-      newDiv.appendChild(emailList);
-      const companySidebar = document.getElementById("company-sidebar");
-      if (companySidebar) {
-        companySidebar.appendChild(newDiv);
-      } else {
-        document.body.appendChild(newDiv);
+        emailList.appendChild(li);
       }
     });
 
-    // Make the div draggable
-    let isDragging = false;
-    let startX, startY, initialX, initialY;
+    // Show "No emails found" message if no emails detected
+    if (emails.length === 0) {
+      const noEmailsLi = document.createElement("li");
+      noEmailsLi.textContent = "No emails found on this page";
+      noEmailsLi.style.fontStyle = "italic";
+      noEmailsLi.style.color = "#666";
+      emailList.appendChild(noEmailsLi);
+    }
 
-    newDiv.addEventListener('mousedown', function (e) {
-      isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      initialX = newDiv.offsetLeft;
-      initialY = newDiv.offsetTop;
-      document.body.style.userSelect = 'none';
-    });
-
-    document.addEventListener('mousemove', function (e) {
-      if (isDragging) {
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        newDiv.style.left = (initialX + dx) + 'px';
-        newDiv.style.top = (initialY + dy) + 'px';
-        newDiv.style.right = 'auto'; // Disable right to enable free dragging
-        newDiv.style.bottom = 'auto'; // Disable bottom to enable free dragging
+    // Manual email input row — always present so user can paste any address.
+    const manualLi = document.createElement("li");
+    manualLi.style.marginTop = "6px";
+    const manualInput = document.createElement("input");
+    manualInput.type = "text";
+    manualInput.placeholder = "Paste email…";
+    manualInput.style.cssText = "width:140px;font-size:12px;padding:2px 4px;";
+    const manualApplyBtn = document.createElement("button");
+    manualApplyBtn.textContent = "Apply";
+    manualApplyBtn.style.cssText = "margin-left:4px;font-size:12px;";
+    manualApplyBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const email = manualInput.value.trim();
+      if (!email || !email.includes("@")) return;
+      const jobInfo = getCurrentApplyJobInfo();
+      const url = buildPingojoApplyUrl(base_url, email, jobInfo);
+      if (cachedLastJobViewed) {
+        cachedLastJobViewed = { ...cachedLastJobViewed, email };
+        chrome.storage.sync.set({ last_job_viewed: cachedLastJobViewed });
       }
+      window.open(url, "_blank");
     });
+    manualLi.appendChild(manualInput);
+    manualLi.appendChild(manualApplyBtn);
+    emailList.appendChild(manualLi);
 
-    document.addEventListener('mouseup', function () {
-      isDragging = false;
-      document.body.style.userSelect = 'auto';
-    });
-  }
+    newDiv.appendChild(emailList);
+    const companySidebar = document.getElementById("company-sidebar");
+    if (companySidebar) {
+      companySidebar.appendChild(newDiv);
+    } else {
+      document.body.appendChild(newDiv);
+    }
+  });
+
+  // Make the div draggable
+  let isDragging = false;
+  let startX, startY, initialX, initialY;
+
+  newDiv.addEventListener('mousedown', function (e) {
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    initialX = newDiv.offsetLeft;
+    initialY = newDiv.offsetTop;
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', function (e) {
+    if (isDragging) {
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      newDiv.style.left = (initialX + dx) + 'px';
+      newDiv.style.top = (initialY + dy) + 'px';
+      newDiv.style.right = 'auto'; // Disable right to enable free dragging
+      newDiv.style.bottom = 'auto'; // Disable bottom to enable free dragging
+    }
+  });
+
+  document.addEventListener('mouseup', function () {
+    isDragging = false;
+    document.body.style.userSelect = 'auto';
+  });
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

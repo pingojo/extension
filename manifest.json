@@ -4,7 +4,7 @@
   "icons": {
     "128": "logo-128.png"
  },
-  "version": "1.2",
+  "version": "1.8",
   "description": "A CRM tool integrated into Gmail for Pingojo",
   "permissions": ["tabs", "storage", "activeTab", "scripting", "cookies", "clipboardRead", "clipboardWrite"],
   "action": {
